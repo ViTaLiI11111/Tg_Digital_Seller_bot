@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # КРИТИЧНО ВАЖЛИВО: Базу даних (наприклад, SQLite) потрібно зберігати 
+      # в цій папці (наприклад, /app/data/bot_database.db), щоб вона 
+      # не видалялась при оновленні або перезапуску контейнера.
+      - ./data:/app/data
+    env_file:
+      - .env
