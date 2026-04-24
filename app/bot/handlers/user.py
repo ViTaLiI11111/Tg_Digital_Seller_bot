@@ -31,33 +31,51 @@ async def cmd_start(message: Message, session: AsyncSession):
         reply_markup=main_menu_keyboard
     )
 
-@user_router.message(F.text == "🛍 Каталог продуктов")
-async def catalog_handler(message: Message):
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Доступ (19€)", callback_data="buy_19")],
-            [InlineKeyboardButton(text="14 Lady Reset (39€)", callback_data="buy_39")],
-            [InlineKeyboardButton(text="Lady Reset PRO (89€)", callback_data="buy_89")]
-        ]
+@user_router.message(F.text == "🛍 Продукт")
+async def product_handler(message: Message, session: AsyncSession):
+    # Отримуємо всі успішні замовлення користувача
+    stmt = select(Order.product_id).where(
+        Order.user_id == message.from_user.id,
+        Order.status == 'success'
     )
-    await message.answer(
-        "Выберите продукт для покупки:",
-        reply_markup=kb
-    )
+    result = await session.execute(stmt)
+    purchased_products = [row[0] for row in result.fetchall()]
 
-@user_router.message(F.text == "ℹ️ О проекте")
-async def about_project_handler(message: Message):
-    await message.answer(
-        "ℹ️ <b>Lady Reset</b> — это проект для полной перезагрузки и улучшения вашего здоровья.\n"
-        "Здесь вы найдете материалы, программы и сопровождение для достижения лучших результатов.",
-        parse_mode="HTML"
-    )
+    kb = None
+    text = ""
 
-@user_router.message(F.text == "📞 Поддержка")
-async def support_handler(message: Message):
-    await message.answer(
-        "📞 Если у вас возникли вопросы или проблемы с оплатой, обратитесь в нашу поддержку: @admin_username"
-    )
+    if 1 not in purchased_products:
+        # Юзер ще не купив перший продукт (19€)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Доступ (19€)", callback_data="buy_19")]
+            ]
+        )
+        text = "Выберите продукт для покупки:\n\n<b>Доступ (19€)</b> — начало пути к вашему здоровью."
+    elif 2 not in purchased_products:
+        # Юзер купив перший, але не купив другий (39€)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="14 Lady Reset (39€)", callback_data="buy_39")]
+            ]
+        )
+        text = "Вы уже приобрели базовый доступ. Переходите к следующему шагу:\n\n<b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>"
+    elif 3 not in purchased_products:
+        # Юзер купив перший і другий, але не купив третій (89€)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Lady Reset PRO (89€)", callback_data="buy_89")]
+            ]
+        )
+        text = "Вы прошли программу! Желаете большего?\n\n<b>Lady Reset PRO — Сопровождение (89€)</b>"
+    else:
+        # Юзер купив всі три продукти
+        text = "Вы приобрели все доступные продукты! 🎉 Спасибо за доверие."
+
+    if kb:
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await message.answer(text, parse_mode="HTML")
 
 @user_router.callback_query(F.data == "buy_19")
 async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
