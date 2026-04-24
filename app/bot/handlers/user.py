@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.database.models import User, Order
 from app.bot.keyboards.reply import main_menu_keyboard
+from app.bot.lexicon import MESSAGES, BUTTONS, STRIPE_PRODUCTS
 
 user_router = Router()
 
@@ -27,13 +28,12 @@ async def cmd_start(message: Message, session: AsyncSession):
         await session.commit()
 
     await message.answer(
-        "👋 Добро пожаловать в Lady Reset! Выберите нужный раздел в меню ниже 👇",
+        MESSAGES['welcome'],
         reply_markup=main_menu_keyboard
     )
 
-@user_router.message(F.text == "🛍 Продукт")
+@user_router.message(F.text == BUTTONS['main_menu_product'])
 async def product_handler(message: Message, session: AsyncSession):
-    # Отримуємо всі успішні замовлення користувача
     stmt = select(Order.product_id).where(
         Order.user_id == message.from_user.id,
         Order.status == 'success'
@@ -45,32 +45,28 @@ async def product_handler(message: Message, session: AsyncSession):
     text = ""
 
     if 1 not in purchased_products:
-        # Юзер ще не купив перший продукт (19€)
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Доступ (19€)", callback_data="buy_19")]
+                [InlineKeyboardButton(text=BUTTONS['buy_19'], callback_data="buy_19")]
             ]
         )
-        text = "Выберите продукт для покупки:\n\n<b>Доступ (19€)</b> — начало пути к вашему здоровью."
+        text = MESSAGES['product_1_offer']
     elif 2 not in purchased_products:
-        # Юзер купив перший, але не купив другий (39€)
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="14 Lady Reset (39€)", callback_data="buy_39")]
+                [InlineKeyboardButton(text=BUTTONS['buy_39'], callback_data="buy_39")]
             ]
         )
-        text = "Вы уже приобрели базовый доступ. Переходите к следующему шагу:\n\n<b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>"
+        text = MESSAGES['product_2_offer']
     elif 3 not in purchased_products:
-        # Юзер купив перший і другий, але не купив третій (89€)
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Lady Reset PRO (89€)", callback_data="buy_89")]
+                [InlineKeyboardButton(text=BUTTONS['buy_89'], callback_data="buy_89")]
             ]
         )
-        text = "Вы прошли программу! Желаете большего?\n\n<b>Lady Reset PRO — Сопровождение (89€)</b>"
+        text = MESSAGES['product_3_offer']
     else:
-        # Юзер купив всі три продукти
-        text = "Вы приобрели все доступные продукты! 🎉 Спасибо за доверие."
+        text = MESSAGES['all_purchased']
 
     if kb:
         await message.answer(text, reply_markup=kb, parse_mode="HTML")
@@ -94,7 +90,7 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
             'price_data': {
                 'currency': 'eur',
                 'product_data': {
-                    'name': 'Доступ (19€)',
+                    'name': STRIPE_PRODUCTS['name_1'],
                 },
                 'unit_amount': 1900,
             },
@@ -107,11 +103,11 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить 19€", url=checkout_session.url)]
+            [InlineKeyboardButton(text=BUTTONS['pay_19'], url=checkout_session.url)]
         ]
     )
     await callback.message.answer(
-        "Супер! Для оплаты перейдите по ссылке ниже:",
+        MESSAGES['payment_link_1'],
         reply_markup=kb
     )
     await callback.answer()
@@ -121,9 +117,7 @@ async def get_file_id(message: Message):
     if message.from_user.id in settings.ADMIN_IDS:
         doc: Document = message.document
         await message.answer(
-            f"📄 <b>Файл:</b> {doc.file_name}\n"
-            f"🔑 <b>file_id:</b> <code>{doc.file_id}</code>\n\n"
-            f"<i>(Скопируй этот file_id кликом и сохрани для кода)</i>",
+            MESSAGES['file_id_info'].format(file_name=doc.file_name, file_id=doc.file_id),
             parse_mode="HTML"
         )
 
@@ -144,7 +138,7 @@ async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
             'price_data': {
                 'currency': 'eur',
                 'product_data': {
-                    'name': '14 Lady Reset — полная перезагрузка ЖКТ (39€)',
+                    'name': STRIPE_PRODUCTS['name_2'],
                 },
                 'unit_amount': 3900,
             },
@@ -157,11 +151,11 @@ async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить 39€", url=checkout_session.url)]
+            [InlineKeyboardButton(text=BUTTONS['pay_39'], url=checkout_session.url)]
         ]
     )
     await callback.message.answer(
-        "🌟 <b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>\n\nДля оплаты перейдите по ссылке ниже:",
+        MESSAGES['payment_link_2'],
         reply_markup=kb,
         parse_mode="HTML"
     )
@@ -184,7 +178,7 @@ async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
             'price_data': {
                 'currency': 'eur',
                 'product_data': {
-                    'name': 'Lady Reset PRO — Сопровождение (89€)',
+                    'name': STRIPE_PRODUCTS['name_3'],
                 },
                 'unit_amount': 8900,
             },
@@ -197,11 +191,11 @@ async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить 89€", url=checkout_session.url)]
+            [InlineKeyboardButton(text=BUTTONS['pay_89'], url=checkout_session.url)]
         ]
     )
     await callback.message.answer(
-        "👑 <b>Lady Reset PRO — Сопровождение (89€)</b>\n\nДля оплаты перейдите по ссылке ниже:",
+        MESSAGES['payment_link_3'],
         reply_markup=kb,
         parse_mode="HTML"
     )

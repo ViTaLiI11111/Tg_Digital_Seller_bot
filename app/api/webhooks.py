@@ -8,6 +8,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from app.database.models import Order
 from app.database.session import get_db_session
 from app.core.config import settings
+from app.bot.lexicon import MESSAGES, BUTTONS
 
 logger = logging.getLogger(__name__)
 
@@ -58,19 +59,19 @@ async def stripe_webhook(
 
                 kb_next = InlineKeyboardMarkup(
                     inline_keyboard=[
-                        [InlineKeyboardButton(text="Продолжить → 14 дней", callback_data="buy_39")]
+                        [InlineKeyboardButton(text=BUTTONS['continue_14_days'], callback_data="buy_39")]
                     ]
                 )
 
                 await bot.send_document(
                     chat_id=order.user_id,
                     document=pdf_file_id,
-                    caption="Доступ открыт. Начните с первого дня. 👆"
+                    caption=MESSAGES['access_opened_1']
                 )
 
                 await bot.send_message(
                     chat_id=order.user_id,
-                    text="Хотите полную перезагрузку? Переходите на 14-дневную программу.",
+                    text=MESSAGES['upsell_after_1'],
                     reply_markup=kb_next
                 )
 
@@ -86,24 +87,26 @@ async def stripe_webhook(
 
                     kb_pro = InlineKeyboardMarkup(
                         inline_keyboard=[
-                            [InlineKeyboardButton(text="Хочу сопровождение (PRO)", callback_data="buy_89")]
+                            [InlineKeyboardButton(text=BUTTONS['want_pro'], callback_data="buy_89")]
                         ]
                     )
 
                     await bot.send_message(
                         chat_id=order.user_id,
-                        text=f"Вы подключены к программе! 🎉\n\nВаша уникальная ссылка на закрытый канал (действует 1 раз):\n{invite_link.invite_link}",
+                        text=MESSAGES['access_opened_2'].format(invite_link=invite_link.invite_link),
                         reply_markup=kb_pro
                     )
                 except Exception as e:
                     logger.error(f"Помилка створення посилання (Бот не адмін?): {e}")
-                    await bot.send_message(order.user_id,
-                                           "Оплата прошла, но возникла ошибка с генерацией ссылки. Обратитесь в поддержку.")
+                    await bot.send_message(
+                        order.user_id,
+                        MESSAGES['link_generation_error']
+                    )
 
             elif order.product_id == 3:
                 await bot.send_message(
                     chat_id=order.user_id,
-                    text="Оплата PRO успешна! 🏆\n\nНапишите в личные сообщения @username_админа для подключения к сопровождению."
+                    text=MESSAGES['access_opened_3']
                 )
 
     return {"status": "success"}
