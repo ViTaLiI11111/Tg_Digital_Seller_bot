@@ -7,9 +7,10 @@ ENV_PATH = BASE_DIR / ".env"
 
 class Settings(BaseSettings):
     BOT_TOKEN: str
-    KOFI_WEBHOOK_SECRET: Optional[str] = None
     ADMIN_IDS: List[int]
     DB_URL: str = "sqlite+aiosqlite:///./bot_database.db"
+    STRIPE_SECRET_KEY: str
+    STRIPE_WEBHOOK_SECRET: str
 
     model_config = SettingsConfigDict(
         env_file=str(ENV_PATH), 

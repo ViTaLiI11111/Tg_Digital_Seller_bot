@@ -1,4 +1,4 @@
-import uuid
+import stripe
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Document
@@ -9,6 +9,8 @@ from app.core.config import settings
 from app.database.models import User, Order
 
 user_router = Router()
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession):
@@ -35,22 +37,40 @@ async def cmd_start(message: Message, session: AsyncSession):
 
 @user_router.callback_query(F.data == "buy_19")
 async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
-    ko_fi_code = f"PAY-{uuid.uuid4().hex[:6].upper()}"
-    
     order = Order(
         user_id=callback.from_user.id,
         product_id=1,
-        ko_fi_code=ko_fi_code,
         status='pending'
     )
     session.add(order)
     await session.commit()
+    await session.refresh(order)
 
+    checkout_session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=[{
+            'price_data': {
+                'currency': 'eur',
+                'product_data': {
+                    'name': 'Доступ (19€)',
+                },
+                'unit_amount': 1900,
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        metadata={'order_id': str(order.id)},
+        success_url='https://t.me/LadyResetBot'
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатити 19€", url=checkout_session.url)]
+        ]
+    )
     await callback.message.answer(
-        f"Супер! Для оплати перейдіть на Ko-fi.\n\n"
-        f"При оплаті <b>ОБОВ'ЯЗКОВО</b> вкажіть цей код у повідомленні до донату:\n"
-        f"<code>{ko_fi_code}</code>",
-        parse_mode="HTML"
+        "Супер! Для оплати перейдіть за посиланням нижче:",
+        reply_markup=kb
     )
     await callback.answer()
 
@@ -67,42 +87,80 @@ async def get_file_id(message: Message):
 
 @user_router.callback_query(F.data == "buy_39")
 async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
-    ko_fi_code = f"PAY-{uuid.uuid4().hex[:6].upper()}"
-
     order = Order(
         user_id=callback.from_user.id,
         product_id=2,
-        ko_fi_code=ko_fi_code,
         status='pending'
     )
     session.add(order)
     await session.commit()
+    await session.refresh(order)
 
+    checkout_session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=[{
+            'price_data': {
+                'currency': 'eur',
+                'product_data': {
+                    'name': '14 Lady Reset — полная перезагрузка ЖКТ (39€)',
+                },
+                'unit_amount': 3900,
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        metadata={'order_id': str(order.id)},
+        success_url='https://t.me/LadyResetBot'
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатити 39€", url=checkout_session.url)]
+        ]
+    )
     await callback.message.answer(
-        f"🌟 <b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>\n\n"
-        f"Для оплати перейдіть на Ko-fi.\n"
-        f"⚠️ ОБОВ'ЯЗКОВО вкажіть цей код у повідомленні до донату: <code>{ko_fi_code}</code>",
+        "🌟 <b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>\n\nДля оплати перейдіть за посиланням нижче:",
+        reply_markup=kb,
         parse_mode="HTML"
     )
     await callback.answer()
 
 @user_router.callback_query(F.data == "buy_89")
 async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
-    ko_fi_code = f"PAY-{uuid.uuid4().hex[:6].upper()}"
-
     order = Order(
         user_id=callback.from_user.id,
         product_id=3,
-        ko_fi_code=ko_fi_code,
         status='pending'
     )
     session.add(order)
     await session.commit()
+    await session.refresh(order)
 
+    checkout_session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=[{
+            'price_data': {
+                'currency': 'eur',
+                'product_data': {
+                    'name': 'Lady Reset PRO — Сопровождение (89€)',
+                },
+                'unit_amount': 8900,
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        metadata={'order_id': str(order.id)},
+        success_url='https://t.me/LadyResetBot'
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатити 89€", url=checkout_session.url)]
+        ]
+    )
     await callback.message.answer(
-        f"👑 <b>Lady Reset PRO — Сопровождение (89€)</b>\n\n"
-        f"Для оплати перейдіть на Ko-fi.\n"
-        f"⚠️ ОБОВ'ЯЗКОВО вкажіть цей код у повідомленні до донату: <code>{ko_fi_code}</code>",
+        "👑 <b>Lady Reset PRO — Сопровождение (89€)</b>\n\nДля оплати перейдіть за посиланням нижче:",
+        reply_markup=kb,
         parse_mode="HTML"
     )
     await callback.answer()

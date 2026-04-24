@@ -24,7 +24,7 @@ class Order(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     product_id: Mapped[int] = mapped_column()
-    ko_fi_code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    ko_fi_code: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=True) # Зроблено опціональним для сумісності
     status: Mapped[str] = mapped_column(String, default="pending")
 
     user: Mapped["User"] = relationship(back_populates="orders")
