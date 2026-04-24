@@ -92,18 +92,18 @@ async def stripe_webhook(
 
                     await bot.send_message(
                         chat_id=order.user_id,
-                        text=f"Вы подключены к программе! 🎉\n\nВаше унікальне посилання на закритий канал (діє 1 раз):\n{invite_link.invite_link}",
+                        text=f"Вы подключены к программе! 🎉\n\nВаша уникальная ссылка на закрытый канал (действует 1 раз):\n{invite_link.invite_link}",
                         reply_markup=kb_pro
                     )
                 except Exception as e:
                     logger.error(f"Помилка створення посилання (Бот не адмін?): {e}")
                     await bot.send_message(order.user_id,
-                                           "Оплата пройшла, але виникла помилка з генерацією посилання. Зверніться до підтримки.")
+                                           "Оплата прошла, но возникла ошибка с генерацией ссылки. Обратитесь в поддержку.")
 
             elif order.product_id == 3:
                 await bot.send_message(
                     chat_id=order.user_id,
-                    text="Оплата PRO успішна! 🏆\n\nНапишите в личные сообщения @username_админа для подключения к сопровождению."
+                    text="Оплата PRO успешна! 🏆\n\nНапишите в личные сообщения @username_админа для подключения к сопровождению."
                 )
 
     return {"status": "success"}

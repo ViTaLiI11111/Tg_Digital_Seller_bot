@@ -27,11 +27,11 @@ async def cmd_start(message: Message, session: AsyncSession):
         await session.commit()
 
     await message.answer(
-        "👋 Вітаю у Lady Reset! Оберіть потрібний розділ у меню нижче 👇",
+        "👋 Добро пожаловать в Lady Reset! Выберите нужный раздел в меню ниже 👇",
         reply_markup=main_menu_keyboard
     )
 
-@user_router.message(F.text == "🛍 Каталог продуктів")
+@user_router.message(F.text == "🛍 Каталог продуктов")
 async def catalog_handler(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -41,22 +41,22 @@ async def catalog_handler(message: Message):
         ]
     )
     await message.answer(
-        "Оберіть продукт для покупки:",
+        "Выберите продукт для покупки:",
         reply_markup=kb
     )
 
-@user_router.message(F.text == "ℹ️ Про проєкт")
+@user_router.message(F.text == "ℹ️ О проекте")
 async def about_project_handler(message: Message):
     await message.answer(
-        "ℹ️ <b>Lady Reset</b> — це проєкт для повної перезавантаження та покращення вашого здоров'я.\n"
-        "Тут ви знайдете матеріали, програми та супровід для досягнення найкращих результатів.",
+        "ℹ️ <b>Lady Reset</b> — это проект для полной перезагрузки и улучшения вашего здоровья.\n"
+        "Здесь вы найдете материалы, программы и сопровождение для достижения лучших результатов.",
         parse_mode="HTML"
     )
 
-@user_router.message(F.text == "📞 Підтримка")
+@user_router.message(F.text == "📞 Поддержка")
 async def support_handler(message: Message):
     await message.answer(
-        "📞 Якщо у вас виникли питання або проблеми з оплатою, зверніться до нашої підтримки: @admin_username"
+        "📞 Если у вас возникли вопросы или проблемы с оплатой, обратитесь в нашу поддержку: @admin_username"
     )
 
 @user_router.callback_query(F.data == "buy_19")
@@ -89,11 +89,11 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатити 19€", url=checkout_session.url)]
+            [InlineKeyboardButton(text="Оплатить 19€", url=checkout_session.url)]
         ]
     )
     await callback.message.answer(
-        "Супер! Для оплати перейдіть за посиланням нижче:",
+        "Супер! Для оплаты перейдите по ссылке ниже:",
         reply_markup=kb
     )
     await callback.answer()
@@ -105,7 +105,7 @@ async def get_file_id(message: Message):
         await message.answer(
             f"📄 <b>Файл:</b> {doc.file_name}\n"
             f"🔑 <b>file_id:</b> <code>{doc.file_id}</code>\n\n"
-            f"<i>(Скопіюй цей file_id кліком і збережи для коду)</i>",
+            f"<i>(Скопируй этот file_id кликом и сохрани для кода)</i>",
             parse_mode="HTML"
         )
 
@@ -139,11 +139,11 @@ async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатити 39€", url=checkout_session.url)]
+            [InlineKeyboardButton(text="Оплатить 39€", url=checkout_session.url)]
         ]
     )
     await callback.message.answer(
-        "🌟 <b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>\n\nДля оплати перейдіть за посиланням нижче:",
+        "🌟 <b>14 Lady Reset — полная перезагрузка ЖКТ (39€)</b>\n\nДля оплаты перейдите по ссылке ниже:",
         reply_markup=kb,
         parse_mode="HTML"
     )
@@ -179,11 +179,11 @@ async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатити 89€", url=checkout_session.url)]
+            [InlineKeyboardButton(text="Оплатить 89€", url=checkout_session.url)]
         ]
     )
     await callback.message.answer(
-        "👑 <b>Lady Reset PRO — Сопровождение (89€)</b>\n\nДля оплати перейдіть за посиланням нижче:",
+        "👑 <b>Lady Reset PRO — Сопровождение (89€)</b>\n\nДля оплаты перейдите по ссылке ниже:",
         reply_markup=kb,
         parse_mode="HTML"
     )
