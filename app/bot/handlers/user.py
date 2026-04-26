@@ -98,7 +98,7 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
         }],
         mode='payment',
         metadata={'order_id': str(order.id)},
-        success_url='https://t.me/LadyResetBot'
+        success_url='https://t.me/testtsettesttsettest_bot'
     )
 
     kb = InlineKeyboardMarkup(
@@ -146,7 +146,7 @@ async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
         }],
         mode='payment',
         metadata={'order_id': str(order.id)},
-        success_url='https://t.me/LadyResetBot'
+        success_url='https://t.me/testtsettesttsettest_bot'
     )
 
     kb = InlineKeyboardMarkup(
@@ -186,7 +186,7 @@ async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
         }],
         mode='payment',
         metadata={'order_id': str(order.id)},
-        success_url='https://t.me/LadyResetBot'
+        success_url='https://t.me/testtsettesttsettest_bot'
     )
 
     kb = InlineKeyboardMarkup(
