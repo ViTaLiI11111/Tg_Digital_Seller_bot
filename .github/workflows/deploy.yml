@@ -13,8 +13,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Новий крок: генерація .env файлу
+      - name: Create .env file
+        run: |
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+          echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
+          echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "WEBHOOK_HOST=${{ secrets.WEBHOOK_HOST }}" >> .env
+          echo "WEBHOOK_PATH=${{ secrets.WEBHOOK_PATH }}" >> .env
+          echo "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" >> .env
+          # Якщо є ще якісь змінні, просто додай їх сюди за тим же принципом
+
       - name: Deploy with Docker Compose
-        shell: cmd
+        # shell: cmd <-- ВИДАЛЕНО, бо на Hetzner у нас Linux
         run: |
           docker compose down
           docker compose up --build -d
