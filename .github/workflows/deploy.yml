@@ -23,7 +23,7 @@ jobs:
           echo "WEBHOOK_HOST=${{ secrets.WEBHOOK_HOST }}" >> .env
           echo "WEBHOOK_PATH=${{ secrets.WEBHOOK_PATH }}" >> .env
           echo "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" >> .env
-          # Якщо є ще якісь змінні, просто додай їх сюди за тим же принципом
+          echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
 
       - name: Deploy with Docker Compose
         # shell: cmd <-- ВИДАЛЕНО, бо на Hetzner у нас Linux
