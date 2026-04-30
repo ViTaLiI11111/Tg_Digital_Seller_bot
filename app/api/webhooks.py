@@ -55,7 +55,7 @@ async def stripe_webhook(
             bot = request.app.state.bot
 
             if order.product_id == 1:
-                pdf_file_id = "BQACAgIAAxkBAAMFafO7pK-zRG1iiUGrwcZ4CFPLHVMAAiabAAL8HaFLZZxmg_jJGSQ7BA"
+                pdf_file_id = "BQACAgIAAxkBAAMRafO_hDZN8dfkzC3DMNdZ33vZfgUAAjmbAAL8HaFLMLX3OJYWkCk7BA"
 
                 # Закоментовано миттєвий апсел
                 # kb_next = InlineKeyboardMarkup(
