@@ -27,7 +27,7 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
         session.add(user)
         await session.commit()
 
-    if command.args == "plan39":
+    if command.args == "get_plan39":
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=BUTTONS['buy_39'], callback_data="buy_39")]
@@ -111,7 +111,7 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
         }],
         mode='payment',
         metadata={'order_id': str(order.id)},
-        success_url='https://t.me/Lady_Reset_bot?start=plan39'
+        success_url='https://t.me/Lady_Reset_bot'
     )
 
     kb = InlineKeyboardMarkup(
