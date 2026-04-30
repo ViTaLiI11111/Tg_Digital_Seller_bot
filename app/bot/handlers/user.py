@@ -71,13 +71,13 @@ async def product_handler(message: Message, session: AsyncSession):
             ]
         )
         text = MESSAGES['product_2_offer']
-    elif 3 not in purchased_products:
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=BUTTONS['buy_89'], callback_data="buy_89")]
-            ]
-        )
-        text = MESSAGES['product_3_offer']
+    # elif 3 not in purchased_products:
+    #     kb = InlineKeyboardMarkup(
+    #         inline_keyboard=[
+    #             [InlineKeyboardButton(text=BUTTONS['buy_89'], callback_data="buy_89")]
+    #         ]
+    #     )
+    #     text = MESSAGES['product_3_offer']
     else:
         text = MESSAGES['all_purchased']
 
@@ -174,42 +174,43 @@ async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
     )
     await callback.answer()
 
-@user_router.callback_query(F.data == "buy_89")
-async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
-    order = Order(
-        user_id=callback.from_user.id,
-        product_id=3,
-        status='pending'
-    )
-    session.add(order)
-    await session.commit()
-    await session.refresh(order)
+# Закоментовано логіку для 89 євро
+# @user_router.callback_query(F.data == "buy_89")
+# async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
+#     order = Order(
+#         user_id=callback.from_user.id,
+#         product_id=3,
+#         status='pending'
+#     )
+#     session.add(order)
+#     await session.commit()
+#     await session.refresh(order)
 
-    checkout_session = stripe.checkout.Session.create(
-        payment_method_types=['card'],
-        line_items=[{
-            'price_data': {
-                'currency': 'eur',
-                'product_data': {
-                    'name': STRIPE_PRODUCTS['name_3'],
-                },
-                'unit_amount': 8900,
-            },
-            'quantity': 1,
-        }],
-        mode='payment',
-        metadata={'order_id': str(order.id)},
-        success_url='https://t.me/Lady_Reset_bot'
-    )
+#     checkout_session = stripe.checkout.Session.create(
+#         payment_method_types=['card'],
+#         line_items=[{
+#             'price_data': {
+#                 'currency': 'eur',
+#                 'product_data': {
+#                     'name': STRIPE_PRODUCTS['name_3'],
+#                 },
+#                 'unit_amount': 8900,
+#             },
+#             'quantity': 1,
+#         }],
+#         mode='payment',
+#         metadata={'order_id': str(order.id)},
+#         success_url='https://t.me/Lady_Reset_bot'
+#     )
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=BUTTONS['pay_89'], url=checkout_session.url)]
-        ]
-    )
-    await callback.message.answer(
-        MESSAGES['payment_link_3'],
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    await callback.answer()
+#     kb = InlineKeyboardMarkup(
+#         inline_keyboard=[
+#             [InlineKeyboardButton(text=BUTTONS['pay_89'], url=checkout_session.url)]
+#         ]
+#     )
+#     await callback.message.answer(
+#         MESSAGES['payment_link_3'],
+#         reply_markup=kb,
+#         parse_mode="HTML"
+#     )
+#     await callback.answer()

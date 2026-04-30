@@ -89,7 +89,7 @@ async def stripe_webhook(
                     # Закоментовано апсел 89 євро
                     # kb_pro = InlineKeyboardMarkup(
                     #     inline_keyboard=[
-                    #         [InlineKeyboardButton(text=BUTTONS['want_pro'], callback_data="buy_89")]
+                    #         # [InlineKeyboardButton(text=BUTTONS['want_pro'], callback_data="buy_89")]
                     #     ]
                     # )
 
