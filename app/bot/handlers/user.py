@@ -1,6 +1,6 @@
 import stripe
 from aiogram import Router, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Document, ReplyKeyboardMarkup, KeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -15,7 +15,7 @@ user_router = Router()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 @user_router.message(CommandStart())
-async def cmd_start(message: Message, session: AsyncSession):
+async def cmd_start(message: Message, session: AsyncSession, command: CommandObject):
     stmt = select(User).where(User.telegram_id == message.from_user.id)
     user = await session.scalar(stmt)
 
@@ -26,6 +26,19 @@ async def cmd_start(message: Message, session: AsyncSession):
         )
         session.add(user)
         await session.commit()
+
+    if command.args == "plan39":
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=BUTTONS['buy_39'], callback_data="buy_39")]
+            ]
+        )
+        await message.answer(
+            MESSAGES['product_2_offer'],
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        return
 
     await message.answer(
         MESSAGES['welcome'],
@@ -98,7 +111,7 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
         }],
         mode='payment',
         metadata={'order_id': str(order.id)},
-        success_url='https://t.me/testtsettesttsettest_bot'
+        success_url='https://t.me/testtsettesttsettest_bot?start=plan39'
     )
 
     kb = InlineKeyboardMarkup(

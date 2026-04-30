@@ -55,13 +55,14 @@ async def stripe_webhook(
             bot = request.app.state.bot
 
             if order.product_id == 1:
-                pdf_file_id = "BQACAgIAAxkBAAMDadAXDRZfeDNy9Sfm2beamaBndE4AAnuRAAIT4IFKU3STNwxlnlE7BA"
+                pdf_file_id = "BQACAgIAAxkBAAMFafO7pK-zRG1iiUGrwcZ4CFPLHVMAAiabAAL8HaFLZZxmg_jJGSQ7BA"
 
-                kb_next = InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(text=BUTTONS['continue_14_days'], callback_data="buy_39")]
-                    ]
-                )
+                # Закоментовано миттєвий апсел
+                # kb_next = InlineKeyboardMarkup(
+                #     inline_keyboard=[
+                #         [InlineKeyboardButton(text=BUTTONS['continue_14_days'], callback_data="buy_39")]
+                #     ]
+                # )
 
                 await bot.send_document(
                     chat_id=order.user_id,
@@ -69,11 +70,11 @@ async def stripe_webhook(
                     caption=MESSAGES['access_opened_1']
                 )
 
-                await bot.send_message(
-                    chat_id=order.user_id,
-                    text=MESSAGES['upsell_after_1'],
-                    reply_markup=kb_next
-                )
+                # await bot.send_message(
+                #     chat_id=order.user_id,
+                #     text=MESSAGES['upsell_after_1'],
+                #     reply_markup=kb_next
+                # )
 
             elif order.product_id == 2:
                 channel_id = "-1003717175062"
@@ -85,16 +86,17 @@ async def stripe_webhook(
                         name=f"Оплата 39€ (User {order.user_id})"
                     )
 
-                    kb_pro = InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [InlineKeyboardButton(text=BUTTONS['want_pro'], callback_data="buy_89")]
-                        ]
-                    )
+                    # Закоментовано апсел 89 євро
+                    # kb_pro = InlineKeyboardMarkup(
+                    #     inline_keyboard=[
+                    #         [InlineKeyboardButton(text=BUTTONS['want_pro'], callback_data="buy_89")]
+                    #     ]
+                    # )
 
                     await bot.send_message(
                         chat_id=order.user_id,
                         text=MESSAGES['access_opened_2'].format(invite_link=invite_link.invite_link),
-                        reply_markup=kb_pro
+                        # reply_markup=kb_pro
                     )
                 except Exception as e:
                     logger.error(f"Помилка створення посилання (Бот не адмін?): {e}")
@@ -103,10 +105,11 @@ async def stripe_webhook(
                         MESSAGES['link_generation_error']
                     )
 
-            elif order.product_id == 3:
-                await bot.send_message(
-                    chat_id=order.user_id,
-                    text=MESSAGES['access_opened_3']
-                )
+            # Закоментовано логіку видачі 89 євро
+            # elif order.product_id == 3:
+            #     await bot.send_message(
+            #         chat_id=order.user_id,
+            #         text=MESSAGES['access_opened_3']
+            #     )
 
     return {"status": "success"}
