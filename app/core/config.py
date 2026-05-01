@@ -6,8 +6,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = BASE_DIR / ".env"
 
-# Ensure the data directory exists
-DATA_DIR = BASE_DIR / "data"
+# We use an absolute path '/app/data' mapped from the host to ensure persistence
+# regardless of where the app is cloned in the Docker container.
+if os.path.exists("/app"):
+    DATA_DIR = Path("/app/data")
+else:
+    # If we are running locally (not in Docker), fallback to local directory
+    DATA_DIR = BASE_DIR / "data"
+
 os.makedirs(DATA_DIR, exist_ok=True)
 
 class Settings(BaseSettings):
