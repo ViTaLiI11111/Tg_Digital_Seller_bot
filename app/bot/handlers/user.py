@@ -4,15 +4,31 @@ from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Document
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from datetime import datetime
 
 from app.core.config import settings
-from app.database.models import User, Order
+from app.database.models import User, Order, GlobalSettings
 from app.bot.keyboards.reply import main_menu_keyboard
 from app.bot.lexicon import MESSAGES, BUTTONS, STRIPE_PRODUCTS
 
 user_router = Router()
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+async def is_payments_enabled(session: AsyncSession) -> bool:
+    stmt = select(GlobalSettings).where(GlobalSettings.id == 1)
+    db_settings = await session.scalar(stmt)
+    if not db_settings:
+        return True
+    
+    if not db_settings.payments_enabled:
+        if db_settings.auto_enable_at and datetime.utcnow() >= db_settings.auto_enable_at:
+            db_settings.payments_enabled = True
+            db_settings.auto_enable_at = None
+            await session.commit()
+            return True
+        return False
+    return True
 
 async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):
     user = await session.scalar(select(User).where(User.telegram_id == message.chat.id))
@@ -92,6 +108,10 @@ async def decline_disclaimer_handler(callback: CallbackQuery):
     await callback.answer()
 
 async def process_buy_19(message: Message, session: AsyncSession):
+    if not await is_payments_enabled(session):
+        await message.answer(MESSAGES['shabbat_message'])
+        return
+
     user_id = message.chat.id
     
     order = Order(
@@ -131,6 +151,10 @@ async def process_buy_19(message: Message, session: AsyncSession):
     )
 
 async def process_buy_39(message: Message, session: AsyncSession):
+    if not await is_payments_enabled(session):
+        await message.answer(MESSAGES['shabbat_message'])
+        return
+
     user_id = message.chat.id
 
     order = Order(

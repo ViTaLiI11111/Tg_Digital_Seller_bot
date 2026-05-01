@@ -10,6 +10,7 @@ from aiogram.types import TelegramObject
 from app.core.config import settings
 from app.api.webhooks import webhook_router
 from app.bot.handlers.user import user_router
+from app.bot.handlers.admin import admin_router
 from app.database.models import init_db
 from app.database.session import engine, async_session_maker
 
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     dp = Dispatcher()
 
     dp.update.middleware(DbSessionMiddleware())
+    dp.include_router(admin_router) # Важливо: admin_router має йти першим
     dp.include_router(user_router)
 
     app.state.bot = bot

@@ -25,7 +25,6 @@ class Order(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     product_id: Mapped[int] = mapped_column()
-    #ko_fi_code: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=True) # Зроблено опціональним для сумісності
     status: Mapped[str] = mapped_column(String, default="pending")
 
     user: Mapped["User"] = relationship(back_populates="orders")
@@ -36,6 +35,13 @@ class TextContent(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String, unique=True)
     content: Mapped[str] = mapped_column(Text)
+
+class GlobalSettings(Base):
+    __tablename__ = "global_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_enable_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 async def init_db(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
