@@ -1,1 +1,4 @@
 /.env
+/data/
+/stripe.exe
+/bot_database.db
