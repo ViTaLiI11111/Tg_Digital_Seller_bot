@@ -24,7 +24,8 @@ async def show_disclaimer(message: Message, session: AsyncSession, product_id: i
     else:
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=BUTTONS['accept_disclaimer'], callback_data=f"accept_disclaimer_{product_id}")]
+                [InlineKeyboardButton(text=BUTTONS['accept_disclaimer'], callback_data=f"accept_disclaimer_{product_id}")],
+                [InlineKeyboardButton(text=BUTTONS['decline_disclaimer'], callback_data="decline_disclaimer")]
             ]
         )
         await message.answer(MESSAGES['disclaimer'], reply_markup=kb, parse_mode="HTML")
@@ -77,16 +78,20 @@ async def accept_disclaimer_handler(callback: CallbackQuery, session: AsyncSessi
         user.disclaimer_accepted = True
         await session.commit()
 
-    await callback.message.delete()
+    await callback.message.edit_reply_markup()
 
     if product_id == 1:
         await process_buy_19(callback.message, session)
     elif product_id == 2:
         await process_buy_39(callback.message, session)
 
+@user_router.callback_query(F.data == "decline_disclaimer")
+async def decline_disclaimer_handler(callback: CallbackQuery):
+    await callback.message.edit_reply_markup()
+    await callback.message.answer(MESSAGES['disclaimer_declined'])
+    await callback.answer()
+
 async def process_buy_19(message: Message, session: AsyncSession):
-    # Коли викликається з accept_disclaimer_handler, message це callback.message
-    # і chat.id тут потрібен, але user_id в Order має бути від chat.id (Telegram ID користувача)
     user_id = message.chat.id
     
     order = Order(
