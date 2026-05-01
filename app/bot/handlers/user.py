@@ -1,7 +1,7 @@
 import stripe
 from aiogram import Router, F
 from aiogram.filters import CommandStart, CommandObject
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Document, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Document
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -14,6 +14,21 @@ user_router = Router()
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):
+    user = await session.scalar(select(User).where(User.telegram_id == message.from_user.id))
+    if user and user.disclaimer_accepted:
+        if product_id == 1:
+            await process_buy_19(message, session)
+        elif product_id == 2:
+            await process_buy_39(message, session)
+    else:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=BUTTONS['accept_disclaimer'], callback_data=f"accept_disclaimer_{product_id}")]
+            ]
+        )
+        await message.answer(MESSAGES['disclaimer'], reply_markup=kb, parse_mode="HTML")
+
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession, command: CommandObject):
     stmt = select(User).where(User.telegram_id == message.from_user.id)
@@ -22,22 +37,14 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
     if not user:
         user = User(
             telegram_id=message.from_user.id,
-            username=message.from_user.username
+            username=message.from_user.username,
+            disclaimer_accepted=False
         )
         session.add(user)
         await session.commit()
 
     if command.args == "get_plan39":
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=BUTTONS['buy_39'], callback_data="buy_39")]
-            ]
-        )
-        await message.answer(
-            MESSAGES['product_2_offer'],
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
+        await show_disclaimer(message, session, 2)
         return
 
     await message.answer(
@@ -54,42 +61,32 @@ async def product_handler(message: Message, session: AsyncSession):
     result = await session.execute(stmt)
     purchased_products = [row[0] for row in result.fetchall()]
 
-    kb = None
-    text = ""
-
     if 1 not in purchased_products:
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=BUTTONS['buy_19'], callback_data="buy_19")]
-            ]
-        )
-        text = MESSAGES['product_1_offer']
+        await show_disclaimer(message, session, 1)
     elif 2 not in purchased_products:
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=BUTTONS['buy_39'], callback_data="buy_39")]
-            ]
-        )
-        text = MESSAGES['product_2_offer']
-    # elif 3 not in purchased_products:
-    #     kb = InlineKeyboardMarkup(
-    #         inline_keyboard=[
-    #             [InlineKeyboardButton(text=BUTTONS['buy_89'], callback_data="buy_89")]
-    #         ]
-    #     )
-    #     text = MESSAGES['product_3_offer']
+        await show_disclaimer(message, session, 2)
     else:
-        text = MESSAGES['all_purchased']
+        await message.answer(MESSAGES['all_purchased'], parse_mode="HTML")
 
-    if kb:
-        await message.answer(text, reply_markup=kb, parse_mode="HTML")
-    else:
-        await message.answer(text, parse_mode="HTML")
+@user_router.callback_query(F.data.startswith("accept_disclaimer_"))
+async def accept_disclaimer_handler(callback: CallbackQuery, session: AsyncSession):
+    product_id = int(callback.data.split("_")[-1])
+    
+    user = await session.scalar(select(User).where(User.telegram_id == callback.from_user.id))
+    if user:
+        user.disclaimer_accepted = True
+        await session.commit()
 
-@user_router.callback_query(F.data == "buy_19")
-async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
+    await callback.message.delete()
+
+    if product_id == 1:
+        await process_buy_19(callback.message, session)
+    elif product_id == 2:
+        await process_buy_39(callback.message, session)
+
+async def process_buy_19(message: Message, session: AsyncSession):
     order = Order(
-        user_id=callback.from_user.id,
+        user_id=message.from_user.id,
         product_id=1,
         status='pending'
     )
@@ -119,25 +116,14 @@ async def process_buy_19(callback: CallbackQuery, session: AsyncSession):
             [InlineKeyboardButton(text=BUTTONS['pay_19'], url=checkout_session.url)]
         ]
     )
-    await callback.message.answer(
+    await message.answer(
         MESSAGES['payment_link_1'],
         reply_markup=kb
     )
-    await callback.answer()
 
-@user_router.message(F.document)
-async def get_file_id(message: Message):
-    if message.from_user.id in settings.ADMIN_IDS:
-        doc: Document = message.document
-        await message.answer(
-            MESSAGES['file_id_info'].format(file_name=doc.file_name, file_id=doc.file_id),
-            parse_mode="HTML"
-        )
-
-@user_router.callback_query(F.data == "buy_39")
-async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
+async def process_buy_39(message: Message, session: AsyncSession):
     order = Order(
-        user_id=callback.from_user.id,
+        user_id=message.from_user.id,
         product_id=2,
         status='pending'
     )
@@ -167,50 +153,17 @@ async def process_buy_39(callback: CallbackQuery, session: AsyncSession):
             [InlineKeyboardButton(text=BUTTONS['pay_39'], url=checkout_session.url)]
         ]
     )
-    await callback.message.answer(
+    await message.answer(
         MESSAGES['payment_link_2'],
         reply_markup=kb,
         parse_mode="HTML"
     )
-    await callback.answer()
 
-# Закоментовано логіку для 89 євро
-# @user_router.callback_query(F.data == "buy_89")
-# async def process_buy_89(callback: CallbackQuery, session: AsyncSession):
-#     order = Order(
-#         user_id=callback.from_user.id,
-#         product_id=3,
-#         status='pending'
-#     )
-#     session.add(order)
-#     await session.commit()
-#     await session.refresh(order)
-
-#     checkout_session = stripe.checkout.Session.create(
-#         payment_method_types=['card'],
-#         line_items=[{
-#             'price_data': {
-#                 'currency': 'eur',
-#                 'product_data': {
-#                     'name': STRIPE_PRODUCTS['name_3'],
-#                 },
-#                 'unit_amount': 8900,
-#             },
-#             'quantity': 1,
-#         }],
-#         mode='payment',
-#         metadata={'order_id': str(order.id)},
-#         success_url='https://t.me/Lady_Reset_bot'
-#     )
-
-#     kb = InlineKeyboardMarkup(
-#         inline_keyboard=[
-#             [InlineKeyboardButton(text=BUTTONS['pay_89'], url=checkout_session.url)]
-#         ]
-#     )
-#     await callback.message.answer(
-#         MESSAGES['payment_link_3'],
-#         reply_markup=kb,
-#         parse_mode="HTML"
-#     )
-#     await callback.answer()
+@user_router.message(F.document)
+async def get_file_id(message: Message):
+    if message.from_user.id in settings.ADMIN_IDS:
+        doc: Document = message.document
+        await message.answer(
+            MESSAGES['file_id_info'].format(file_name=doc.file_name, file_id=doc.file_id),
+            parse_mode="HTML"
+        )

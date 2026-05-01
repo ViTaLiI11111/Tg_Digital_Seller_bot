@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import BigInteger, String, Text, DateTime, ForeignKey, func, Boolean
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -15,6 +15,7 @@ class User(Base):
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    disclaimer_accepted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     orders: Mapped[list["Order"]] = relationship(back_populates="user")
 
