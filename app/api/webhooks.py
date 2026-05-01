@@ -57,27 +57,14 @@ async def stripe_webhook(
             if order.product_id == 1:
                 pdf_file_id = "BQACAgIAAxkBAAMRafO_hDZN8dfkzC3DMNdZ33vZfgUAAjmbAAL8HaFLMLX3OJYWkCk7BA"
 
-                # Закоментовано миттєвий апсел
-                # kb_next = InlineKeyboardMarkup(
-                #     inline_keyboard=[
-                #         [InlineKeyboardButton(text=BUTTONS['continue_14_days'], callback_data="buy_39")]
-                #     ]
-                # )
-
                 await bot.send_document(
                     chat_id=order.user_id,
                     document=pdf_file_id,
                     caption=MESSAGES['access_opened_1']
                 )
 
-                # await bot.send_message(
-                #     chat_id=order.user_id,
-                #     text=MESSAGES['upsell_after_1'],
-                #     reply_markup=kb_next
-                # )
-
             elif order.product_id == 2:
-                channel_id = "-1003717175062"
+                channel_id = getattr(settings, "PRIVATE_CHANNEL_ID", "-1003717175062")
 
                 try:
                     invite_link = await bot.create_chat_invite_link(
@@ -86,17 +73,9 @@ async def stripe_webhook(
                         name=f"Оплата 39€ (User {order.user_id})"
                     )
 
-                    # Закоментовано апсел 89 євро
-                    # kb_pro = InlineKeyboardMarkup(
-                    #     inline_keyboard=[
-                    #         # [InlineKeyboardButton(text=BUTTONS['want_pro'], callback_data="buy_89")]
-                    #     ]
-                    # )
-
                     await bot.send_message(
                         chat_id=order.user_id,
-                        text=MESSAGES['access_opened_2'].format(invite_link=invite_link.invite_link),
-                        # reply_markup=kb_pro
+                        text=MESSAGES['access_opened_2'].format(invite_link=invite_link.invite_link)
                     )
                 except Exception as e:
                     logger.error(f"Помилка створення посилання (Бот не адмін?): {e}")
@@ -104,12 +83,5 @@ async def stripe_webhook(
                         order.user_id,
                         MESSAGES['link_generation_error']
                     )
-
-            # Закоментовано логіку видачі 89 євро
-            # elif order.product_id == 3:
-            #     await bot.send_message(
-            #         chat_id=order.user_id,
-            #         text=MESSAGES['access_opened_3']
-            #     )
 
     return {"status": "success"}

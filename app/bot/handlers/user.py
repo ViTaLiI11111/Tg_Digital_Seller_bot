@@ -15,7 +15,7 @@ user_router = Router()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):
-    user = await session.scalar(select(User).where(User.telegram_id == message.from_user.id))
+    user = await session.scalar(select(User).where(User.telegram_id == message.chat.id))
     if user and user.disclaimer_accepted:
         if product_id == 1:
             await process_buy_19(message, session)
@@ -31,12 +31,12 @@ async def show_disclaimer(message: Message, session: AsyncSession, product_id: i
 
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession, command: CommandObject):
-    stmt = select(User).where(User.telegram_id == message.from_user.id)
+    stmt = select(User).where(User.telegram_id == message.chat.id)
     user = await session.scalar(stmt)
 
     if not user:
         user = User(
-            telegram_id=message.from_user.id,
+            telegram_id=message.chat.id,
             username=message.from_user.username,
             disclaimer_accepted=False
         )
@@ -55,7 +55,7 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
 @user_router.message(F.text == BUTTONS['main_menu_product'])
 async def product_handler(message: Message, session: AsyncSession):
     stmt = select(Order.product_id).where(
-        Order.user_id == message.from_user.id,
+        Order.user_id == message.chat.id,
         Order.status == 'success'
     )
     result = await session.execute(stmt)
@@ -72,7 +72,7 @@ async def product_handler(message: Message, session: AsyncSession):
 async def accept_disclaimer_handler(callback: CallbackQuery, session: AsyncSession):
     product_id = int(callback.data.split("_")[-1])
     
-    user = await session.scalar(select(User).where(User.telegram_id == callback.from_user.id))
+    user = await session.scalar(select(User).where(User.telegram_id == callback.message.chat.id))
     if user:
         user.disclaimer_accepted = True
         await session.commit()
@@ -85,8 +85,12 @@ async def accept_disclaimer_handler(callback: CallbackQuery, session: AsyncSessi
         await process_buy_39(callback.message, session)
 
 async def process_buy_19(message: Message, session: AsyncSession):
+    # Коли викликається з accept_disclaimer_handler, message це callback.message
+    # і chat.id тут потрібен, але user_id в Order має бути від chat.id (Telegram ID користувача)
+    user_id = message.chat.id
+    
     order = Order(
-        user_id=message.from_user.id,
+        user_id=user_id,
         product_id=1,
         status='pending'
     )
@@ -122,8 +126,10 @@ async def process_buy_19(message: Message, session: AsyncSession):
     )
 
 async def process_buy_39(message: Message, session: AsyncSession):
+    user_id = message.chat.id
+
     order = Order(
-        user_id=message.from_user.id,
+        user_id=user_id,
         product_id=2,
         status='pending'
     )
@@ -161,7 +167,7 @@ async def process_buy_39(message: Message, session: AsyncSession):
 
 @user_router.message(F.document)
 async def get_file_id(message: Message):
-    if message.from_user.id in settings.ADMIN_IDS:
+    if message.chat.id in settings.ADMIN_IDS:
         doc: Document = message.document
         await message.answer(
             MESSAGES['file_id_info'].format(file_name=doc.file_name, file_id=doc.file_id),
