@@ -35,5 +35,5 @@ BUTTONS = {
 STRIPE_PRODUCTS = {
     'name_1': 'Доступ (19€)',
     'name_2': '14 Lady Reset — полная перезагрузка ЖКТ (39€)',
-    # ##'name_3': 'Lady Reset PRO — Сопровождение (89€)'
+    # 'name_3': 'Lady Reset PRO — Сопровождение (89€)'
 }
