@@ -24,6 +24,8 @@ jobs:
           echo "WEBHOOK_PATH=${{ secrets.WEBHOOK_PATH }}" >> .env
           echo "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" >> .env
           echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
+          echo "TIMEZONE=${{ secrets.TIMEZONE }}" >> .env
+          echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> .env
 
       - name: Deploy with Docker Compose
         # shell: cmd <-- ВИДАЛЕНО, бо на Hetzner у нас Linux

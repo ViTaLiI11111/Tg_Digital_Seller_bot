@@ -186,8 +186,7 @@ async def decline_disclaimer_handler(callback: CallbackQuery):
     await callback.answer()
 
 async def process_buy_19(message: Message, session: AsyncSession):
-    # This function now expects that the payment check has already been performed
-    # by show_disclaimer or accept_disclaimer_handler, but we can leave a safety check here.
+    # Mandatory check before Stripe link generation
     if not await is_payments_enabled(session):
         await message.answer(MESSAGES['shabbat_message'])
         return
@@ -231,7 +230,7 @@ async def process_buy_19(message: Message, session: AsyncSession):
     )
 
 async def process_buy_39(message: Message, session: AsyncSession):
-    # Safety check
+    # Mandatory check before Stripe link generation
     if not await is_payments_enabled(session):
         await message.answer(MESSAGES['shabbat_message'])
         return
