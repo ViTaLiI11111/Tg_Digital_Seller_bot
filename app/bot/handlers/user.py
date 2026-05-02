@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-async def is_payments_enabled(session: AsyncSession) -> bool:
+async def is_payments_enabled(session: AsyncSession) -> tuple[bool, str]:
     stmt = select(GlobalSettings).where(GlobalSettings.id == 1)
     db_settings = await session.scalar(stmt)
     if not db_settings:
-        return True
+        return True, ""
     
     tz = ZoneInfo(settings.TIMEZONE)
     current_time = datetime.now(tz)
@@ -46,7 +46,7 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
 
         if start_tz <= current_time < end_tz:
             logger.info("Result: DISABLED (inside custom schedule)")
-            return False
+            return False, "custom"
         elif current_time >= end_tz:
             logger.info("Result: ENABLING (custom schedule expired)")
             db_settings.use_custom_schedule = False
@@ -54,7 +54,7 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
             db_settings.scheduled_enable_at = None
             db_settings.payments_enabled = True 
             await session.commit()
-            return True
+            return True, ""
 
     # Check manual/shabbat toggle
     if not db_settings.payments_enabled:
@@ -65,12 +65,12 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
                 db_settings.payments_enabled = True
                 db_settings.auto_enable_at = None
                 await session.commit()
-                return True
+                return True, ""
         logger.info("Result: DISABLED (manual toggle or Shabbat)")
-        return False
+        return False, "shabbat"
 
     logger.info("Result: ENABLED (default)")
-    return True
+    return True, ""
 
 async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):
     # This function shows the disclaimer OR processes the purchase immediately.
@@ -81,11 +81,12 @@ async def show_disclaimer(message: Message, session: AsyncSession, product_id: i
     if user and user.disclaimer_accepted:
         # If accepted, we jump straight to purchase logic. 
         # But we must check the schedule FIRST.
-        enabled = await is_payments_enabled(session)
+        enabled, reason = await is_payments_enabled(session)
         logger.info(f"User requested product {product_id}. Payments enabled: {enabled}")
         
         if not enabled:
-            await message.answer(MESSAGES['shabbat_message'])
+            msg = MESSAGES['shabbat_message'] if reason == "shabbat" else MESSAGES['general_downtime_message']
+            await message.answer(msg)
             return
 
         if product_id == 1:
@@ -119,8 +120,10 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
 
     if command.args == "get_plan39":
         # Check payments_enabled before allowing deep link to proceed
-        if not await is_payments_enabled(session):
-            await message.answer(MESSAGES['shabbat_message'])
+        enabled, reason = await is_payments_enabled(session)
+        if not enabled:
+            msg = MESSAGES['shabbat_message'] if reason == "shabbat" else MESSAGES['general_downtime_message']
+            await message.answer(msg)
             return
             
         await show_disclaimer(message, session, 2)
@@ -134,10 +137,11 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
 @user_router.message(F.text == BUTTONS['main_menu_product'])
 async def product_handler(message: Message, session: AsyncSession):
     # CRITICAL FIX: Check payments enabled before proceeding with the main menu button
-    enabled = await is_payments_enabled(session)
+    enabled, reason = await is_payments_enabled(session)
     logger.info(f"User clicked product menu. Payments enabled: {enabled}")
     if not enabled:
-        await message.answer(MESSAGES['shabbat_message'])
+        msg = MESSAGES['shabbat_message'] if reason == "shabbat" else MESSAGES['general_downtime_message']
+        await message.answer(msg)
         return
         
     stmt = select(Order.product_id).where(
@@ -166,11 +170,12 @@ async def accept_disclaimer_handler(callback: CallbackQuery, session: AsyncSessi
     await callback.message.edit_reply_markup()
 
     # Now we check payment status before jumping into process_buy
-    enabled = await is_payments_enabled(session)
+    enabled, reason = await is_payments_enabled(session)
     logger.info(f"User accepted disclaimer for product {product_id}. Payments enabled: {enabled}")
     
     if not enabled:
-        await callback.message.answer(MESSAGES['shabbat_message'])
+        msg = MESSAGES['shabbat_message'] if reason == "shabbat" else MESSAGES['general_downtime_message']
+        await callback.message.answer(msg)
         await callback.answer()
         return
 
@@ -187,8 +192,10 @@ async def decline_disclaimer_handler(callback: CallbackQuery):
 
 async def process_buy_19(message: Message, session: AsyncSession):
     # Mandatory check before Stripe link generation
-    if not await is_payments_enabled(session):
-        await message.answer(MESSAGES['shabbat_message'])
+    enabled, reason = await is_payments_enabled(session)
+    if not enabled:
+        msg = MESSAGES['shabbat_message'] if reason == "shabbat" else MESSAGES['general_downtime_message']
+        await message.answer(msg)
         return
 
     user_id = message.chat.id
@@ -230,9 +237,11 @@ async def process_buy_19(message: Message, session: AsyncSession):
     )
 
 async def process_buy_39(message: Message, session: AsyncSession):
-    # Mandatory check before Stripe link generation
-    if not await is_payments_enabled(session):
-        await message.answer(MESSAGES['shabbat_message'])
+    # Safety check
+    enabled, reason = await is_payments_enabled(session)
+    if not enabled:
+        msg = MESSAGES['shabbat_message'] if reason == "shabbat" else MESSAGES['general_downtime_message']
+        await message.answer(msg)
         return
 
     user_id = message.chat.id

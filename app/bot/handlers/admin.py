@@ -112,10 +112,14 @@ async def secret_admin_command(message: Message, state: FSMContext):
 @admin_router.message(StateFilter(AdminStates.waiting_for_password))
 async def process_admin_password(message: Message, state: FSMContext, session: AsyncSession):
     if message.from_user.id in settings.ADMIN_IDS:
-        current_status = await is_payments_enabled(session)
-        text = await build_admin_menu_text(session, current_status)
-        await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
-        await state.clear()
+        if message.text == settings.ADMIN_PASSWORD:
+            current_status, _ = await is_payments_enabled(session)
+            text = await build_admin_menu_text(session, current_status)
+            await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
+            await state.clear()
+        else:
+            await message.answer(MESSAGES['admin_wrong_password'])
+            await state.clear()
     else:
         await message.answer(MESSAGES['admin_wrong_password'])
         await state.clear()
@@ -128,7 +132,7 @@ async def toggle_payments_handler(callback: CallbackQuery, session: AsyncSession
     db_settings = await get_global_settings(session)
     
     # Check what the current dynamic state is
-    current_status = await is_payments_enabled(session)
+    current_status, _ = await is_payments_enabled(session)
     
     # We toggle the manual flag based on the dynamic state
     db_settings.payments_enabled = not current_status
@@ -136,7 +140,7 @@ async def toggle_payments_handler(callback: CallbackQuery, session: AsyncSession
     db_settings.use_custom_schedule = False
     await session.commit()
     
-    new_status = await is_payments_enabled(session)
+    new_status, _ = await is_payments_enabled(session)
     text = await build_admin_menu_text(session, new_status)
     
     await callback.message.edit_text(
@@ -151,7 +155,7 @@ async def refresh_status_handler(callback: CallbackQuery, session: AsyncSession)
     if callback.from_user.id not in settings.ADMIN_IDS:
         return
 
-    current_status = await is_payments_enabled(session)
+    current_status, _ = await is_payments_enabled(session)
     text = await build_admin_menu_text(session, current_status)
     
     try:
@@ -211,13 +215,13 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     await session.commit()
 
     # Re-evaluate the status and text to ensure the UI is updated immediately
-    current_status = await is_payments_enabled(session)
+    current_status, _ = await is_payments_enabled(session)
     text = await build_admin_menu_text(session, current_status)
     
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
         ),
         parse_mode="HTML"
     )
@@ -240,7 +244,7 @@ async def cancel_downtime_prompt_handler(callback: CallbackQuery, state: FSMCont
     
     await state.clear()
     
-    current_status = await is_payments_enabled(session)
+    current_status, _ = await is_payments_enabled(session)
     text = await build_admin_menu_text(session, current_status)
 
     await callback.message.edit_text(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
@@ -301,7 +305,7 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
     # We don't render the whole menu here, just the confirmation message with a back button.
     # The back button will trigger admin_main_menu, which re-evaluates the state.
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
+        inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
     )
     await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt, tz=settings.TIMEZONE), reply_markup=kb, parse_mode="HTML")
     await state.clear()
@@ -311,7 +315,7 @@ async def admin_main_menu_handler(callback: CallbackQuery, session: AsyncSession
     if callback.from_user.id not in settings.ADMIN_IDS:
         return
     
-    current_status = await is_payments_enabled(session)
+    current_status, _ = await is_payments_enabled(session)
     text = await build_admin_menu_text(session, current_status)
 
     try:

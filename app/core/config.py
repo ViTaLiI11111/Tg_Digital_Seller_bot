@@ -19,6 +19,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 class Settings(BaseSettings):
     BOT_TOKEN: str
     ADMIN_IDS: List[int]
+    ADMIN_PASSWORD: str
     # Default points to the data directory mapped in docker-compose.yml
     DB_URL: str = f"sqlite+aiosqlite:///{DATA_DIR}/bot_database.db"
     STRIPE_SECRET_KEY: str
