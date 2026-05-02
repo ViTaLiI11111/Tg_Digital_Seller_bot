@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str
     STRIPE_WEBHOOK_SECRET: str
     PRIVATE_CHANNEL_ID: str = "-1003717175062"
+    TIMEZONE: str = "Europe/Kiev"
 
     model_config = SettingsConfigDict(
         env_file=str(ENV_PATH), 

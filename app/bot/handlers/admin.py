@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
@@ -45,14 +46,18 @@ def get_admin_keyboard(payments_status: bool) -> InlineKeyboardMarkup:
 
 async def build_admin_menu_text(session: AsyncSession, current_status: bool) -> str:
     db_settings = await get_global_settings(session)
+    tz = ZoneInfo(settings.TIMEZONE)
     
     if current_status:
         status_text = "🟢 Включены"
     else:
         # Determine why it is disabled
         if db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
-            current_time = datetime.utcnow()
-            if db_settings.scheduled_disable_at <= current_time < db_settings.scheduled_enable_at:
+            current_time = datetime.now(tz)
+            start_tz = db_settings.scheduled_disable_at.replace(tzinfo=tz) if db_settings.scheduled_disable_at.tzinfo is None else db_settings.scheduled_disable_at.astimezone(tz)
+            end_tz = db_settings.scheduled_enable_at.replace(tzinfo=tz) if db_settings.scheduled_enable_at.tzinfo is None else db_settings.scheduled_enable_at.astimezone(tz)
+            
+            if start_tz <= current_time < end_tz:
                 status_text = "🔴 Выключены (Автоматически - Свой период)"
             else:
                  status_text = "🔴 Выключены (Вручную)"
@@ -64,12 +69,15 @@ async def build_admin_menu_text(session: AsyncSession, current_status: bool) -> 
     text = f"{MESSAGES['admin_welcome']}\n\n{MESSAGES['admin_payments_status'].format(status=status_text)}"
     
     if db_settings.auto_enable_at and not db_settings.use_custom_schedule:
-        time_str = db_settings.auto_enable_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-        text += f"\n⏳ Авто-включение (Шаббат): <b>{time_str}</b>"
+        auto_tz = db_settings.auto_enable_at.replace(tzinfo=tz) if db_settings.auto_enable_at.tzinfo is None else db_settings.auto_enable_at.astimezone(tz)
+        time_str = auto_tz.strftime("%Y-%m-%d %H:%M:%S")
+        text += f"\n⏳ Авто-включение (Шаббат): <b>{time_str} ({settings.TIMEZONE})</b>"
     elif db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
-        start_str = db_settings.scheduled_disable_at.strftime("%Y-%m-%d %H:%M UTC")
-        end_str = db_settings.scheduled_enable_at.strftime("%Y-%m-%d %H:%M UTC")
-        text += f"\n⏳ Свой период отключения:\nС: <b>{start_str}</b>\nПо: <b>{end_str}</b>"
+        start_tz = db_settings.scheduled_disable_at.replace(tzinfo=tz) if db_settings.scheduled_disable_at.tzinfo is None else db_settings.scheduled_disable_at.astimezone(tz)
+        end_tz = db_settings.scheduled_enable_at.replace(tzinfo=tz) if db_settings.scheduled_enable_at.tzinfo is None else db_settings.scheduled_enable_at.astimezone(tz)
+        start_str = start_tz.strftime("%Y-%m-%d %H:%M")
+        end_str = end_tz.strftime("%Y-%m-%d %H:%M")
+        text += f"\n⏳ Свой период отключения:\nС: <b>{start_str} ({settings.TIMEZONE})</b>\nПо: <b>{end_str} ({settings.TIMEZONE})</b>"
         
     return text
 
@@ -134,7 +142,9 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     if callback.from_user.id not in settings.ADMIN_IDS:
         return
 
-    now = datetime.utcnow()
+    tz = ZoneInfo(settings.TIMEZONE)
+    now = datetime.now(tz)
+    
     if callback.data == "set_shabbat_sat_20":
         days_ahead = 5 - now.weekday()
         if days_ahead <= 0:
@@ -181,6 +191,8 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
     if message.from_user.id not in settings.ADMIN_IDS:
         return
 
+    tz = ZoneInfo(settings.TIMEZONE)
+
     # Expected format: DD.MM HH:MM - DD.MM HH:MM
     try:
         parts = message.text.split("-")
@@ -190,15 +202,19 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
         start_str = parts[0].strip()
         end_str = parts[1].strip()
         
-        current_year = datetime.utcnow().year
+        current_year = datetime.now(tz).year
         
-        # Admin inputs time in UTC, or the bot assumes UTC to avoid mismatch
-        start_time = datetime.strptime(f"{start_str}.{current_year}", "%d.%m %H:%M.%Y")
-        end_time = datetime.strptime(f"{end_str}.{current_year}", "%d.%m %H:%M.%Y")
+        # Parse into naive objects first
+        start_time_naive = datetime.strptime(f"{start_str}.{current_year}", "%d.%m %H:%M.%Y")
+        end_time_naive = datetime.strptime(f"{end_str}.{current_year}", "%d.%m %H:%M.%Y")
         
-        if end_time <= start_time:
+        if end_time_naive <= start_time_naive:
             # If end time is technically before start time, it likely crossed into the next year
-            end_time = end_time.replace(year=current_year + 1)
+            end_time_naive = end_time_naive.replace(year=current_year + 1)
+            
+        # Attach the timezone to the parsed times
+        start_time = start_time_naive.replace(tzinfo=tz)
+        end_time = end_time_naive.replace(tzinfo=tz)
             
     except ValueError:
         await message.answer(MESSAGES['admin_invalid_format_error'], parse_mode="HTML")
@@ -212,15 +228,15 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
     
     await session.commit()
     
-    start_fmt = start_time.strftime("%Y-%m-%d %H:%M UTC")
-    end_fmt = end_time.strftime("%Y-%m-%d %H:%M UTC")
+    start_fmt = start_time.strftime("%Y-%m-%d %H:%M")
+    end_fmt = end_time.strftime("%Y-%m-%d %H:%M")
     
     # We don't render the whole menu here, just the confirmation message with a back button.
     # The back button will trigger admin_main_menu, which re-evaluates the state.
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
     )
-    await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt), reply_markup=kb, parse_mode="HTML")
+    await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt, tz=settings.TIMEZONE), reply_markup=kb, parse_mode="HTML")
     await state.clear()
 
 @admin_router.callback_query(F.data == "admin_main_menu")

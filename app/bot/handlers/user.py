@@ -6,6 +6,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKe
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.database.models import User, Order, GlobalSettings
@@ -23,17 +24,23 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
     if not db_settings:
         return True
     
-    current_time = datetime.utcnow()
+    # Get current time in the configured timezone
+    tz = ZoneInfo(settings.TIMEZONE)
+    current_time = datetime.now(tz)
     
     # Debugging log
-    logger.info(f"Checking payment status. Current time (UTC): {current_time}, Manual Toggle: {db_settings.payments_enabled}, Custom Schedule: {db_settings.use_custom_schedule}, Shabbat Auto-Enable: {db_settings.auto_enable_at}, Custom Start: {db_settings.scheduled_disable_at}, Custom End: {db_settings.scheduled_enable_at}")
+    logger.info(f"Checking payment status. Current time ({settings.TIMEZONE}): {current_time}, Manual Toggle: {db_settings.payments_enabled}, Custom Schedule: {db_settings.use_custom_schedule}, Shabbat Auto-Enable: {db_settings.auto_enable_at}, Custom Start: {db_settings.scheduled_disable_at}, Custom End: {db_settings.scheduled_enable_at}")
 
     # Check custom schedule
     if db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
-        if db_settings.scheduled_disable_at <= current_time < db_settings.scheduled_enable_at:
+        # Ensure DB times are timezone-aware in the correct timezone
+        start_tz = db_settings.scheduled_disable_at.replace(tzinfo=tz) if db_settings.scheduled_disable_at.tzinfo is None else db_settings.scheduled_disable_at.astimezone(tz)
+        end_tz = db_settings.scheduled_enable_at.replace(tzinfo=tz) if db_settings.scheduled_enable_at.tzinfo is None else db_settings.scheduled_enable_at.astimezone(tz)
+
+        if start_tz <= current_time < end_tz:
             logger.info("Result: DISABLED (inside custom schedule)")
             return False
-        elif current_time >= db_settings.scheduled_enable_at:
+        elif current_time >= end_tz:
             logger.info("Result: ENABLING (custom schedule expired)")
             db_settings.use_custom_schedule = False
             db_settings.scheduled_disable_at = None
@@ -44,12 +51,14 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
 
     # Check manual/shabbat toggle
     if not db_settings.payments_enabled:
-        if db_settings.auto_enable_at and current_time >= db_settings.auto_enable_at:
-            logger.info("Result: ENABLING (Shabbat auto-enable time passed)")
-            db_settings.payments_enabled = True
-            db_settings.auto_enable_at = None
-            await session.commit()
-            return True
+        if db_settings.auto_enable_at:
+            auto_tz = db_settings.auto_enable_at.replace(tzinfo=tz) if db_settings.auto_enable_at.tzinfo is None else db_settings.auto_enable_at.astimezone(tz)
+            if current_time >= auto_tz:
+                logger.info("Result: ENABLING (Shabbat auto-enable time passed)")
+                db_settings.payments_enabled = True
+                db_settings.auto_enable_at = None
+                await session.commit()
+                return True
         logger.info("Result: DISABLED (manual toggle or Shabbat)")
         return False
 
