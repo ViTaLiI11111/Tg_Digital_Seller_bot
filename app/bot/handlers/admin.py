@@ -112,7 +112,8 @@ async def secret_admin_command(message: Message, state: FSMContext):
 @admin_router.message(StateFilter(AdminStates.waiting_for_password))
 async def process_admin_password(message: Message, state: FSMContext, session: AsyncSession):
     if message.from_user.id in settings.ADMIN_IDS:
-        if message.text == settings.ADMIN_PASSWORD:
+        # FORCE STRING COMPARISON
+        if str(message.text).strip() == str(settings.ADMIN_PASSWORD).strip():
             current_status, _ = await is_payments_enabled(session)
             text = await build_admin_menu_text(session, current_status)
             await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
