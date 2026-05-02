@@ -127,6 +127,14 @@ async def process_admin_password(message: Message, state: FSMContext, session: A
             logger.info(f"Admin password attempt - Input type: {type(input_pw)}, Input length: {len(input_pw)}")
             
             if input_pw == actual_pw:
+                # -------------------------------------------------------------
+                # DELETE PASSWORD MESSAGE FOR SECURITY
+                # -------------------------------------------------------------
+                try:
+                    await message.delete()
+                except Exception as e:
+                    logger.warning(f"Could not delete admin password message: {e}")
+
                 current_status, _ = await is_payments_enabled(session)
                 text = await build_admin_menu_text(session, current_status)
                 await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
@@ -239,7 +247,7 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
         ),
         parse_mode="HTML"
     )
@@ -323,7 +331,7 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
     # We don't render the whole menu here, just the confirmation message with a back button.
     # The back button will trigger admin_main_menu, which re-evaluates the state.
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
+        inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
     )
     await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt, tz=settings.TIMEZONE), reply_markup=kb, parse_mode="HTML")
     await state.clear()
