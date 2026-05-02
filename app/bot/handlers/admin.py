@@ -17,6 +17,7 @@ admin_router = Router()
 
 class AdminStates(StatesGroup):
     waiting_for_password = State()
+    waiting_for_downtime_range = State()
 
 async def get_global_settings(session: AsyncSession) -> GlobalSettings:
     stmt = select(GlobalSettings).where(GlobalSettings.id == 1)
@@ -34,6 +35,7 @@ def get_admin_keyboard(payments_enabled: bool) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text=f"🔄 {toggle_text}", callback_data="admin_toggle_payments")],
             [InlineKeyboardButton(text=BUTTONS['admin_enable_shabbat'], callback_data="admin_shabbat_menu")],
+            [InlineKeyboardButton(text=BUTTONS['admin_custom_downtime'], callback_data="admin_custom_downtime_prompt")],
             [InlineKeyboardButton(text=BUTTONS['admin_close'], callback_data="admin_close")]
         ]
     )
@@ -45,18 +47,19 @@ async def secret_admin_command(message: Message, state: FSMContext):
 
 @admin_router.message(StateFilter(AdminStates.waiting_for_password))
 async def process_admin_password(message: Message, state: FSMContext, session: AsyncSession):
-    # Use a secure password in reality, or validate against settings.ADMIN_IDS
-    # For now, let's just check if user is in ADMIN_IDS for simplicity and security
     if message.from_user.id in settings.ADMIN_IDS:
-        # Password check could go here if needed, e.g., if message.text == "my_secret_pass":
         db_settings = await get_global_settings(session)
         
         status_text = "Включены" if db_settings.payments_enabled else "Выключены"
         text = f"{MESSAGES['admin_welcome']}\n\n{MESSAGES['admin_payments_status'].format(status=status_text)}"
         
-        if db_settings.auto_enable_at:
+        if db_settings.auto_enable_at and not db_settings.use_custom_schedule:
             time_str = db_settings.auto_enable_at.strftime("%Y-%m-%d %H:%M:%S")
-            text += f"\n⏳ Авто-включение: <b>{time_str}</b>"
+            text += f"\n⏳ Авто-включение (Шаббат): <b>{time_str}</b>"
+        elif db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
+            start_str = db_settings.scheduled_disable_at.strftime("%Y-%m-%d %H:%M")
+            end_str = db_settings.scheduled_enable_at.strftime("%Y-%m-%d %H:%M")
+            text += f"\n⏳ Свой период отключения:\nС: <b>{start_str}</b>\nПо: <b>{end_str}</b>"
 
         await message.answer(text, reply_markup=get_admin_keyboard(db_settings.payments_enabled), parse_mode="HTML")
         await state.clear()
@@ -71,7 +74,8 @@ async def toggle_payments_handler(callback: CallbackQuery, session: AsyncSession
 
     db_settings = await get_global_settings(session)
     db_settings.payments_enabled = not db_settings.payments_enabled
-    db_settings.auto_enable_at = None # Cancel any auto-enable timer if manually toggled
+    db_settings.auto_enable_at = None 
+    db_settings.use_custom_schedule = False
     await session.commit()
     
     status_text = "Включены" if db_settings.payments_enabled else "Выключены"
@@ -104,10 +108,9 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
         return
 
     now = datetime.utcnow()
-    # Calculate days to Saturday (5) or Sunday (6)
     if callback.data == "set_shabbat_sat_20":
         days_ahead = 5 - now.weekday()
-        if days_ahead <= 0: # Target next week
+        if days_ahead <= 0:
             days_ahead += 7
         target_date = now + timedelta(days=days_ahead)
         enable_time = target_date.replace(hour=20, minute=0, second=0, microsecond=0)
@@ -123,6 +126,7 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     db_settings = await get_global_settings(session)
     db_settings.payments_enabled = False
     db_settings.auto_enable_at = enable_time
+    db_settings.use_custom_schedule = False
     await session.commit()
 
     time_str = enable_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -133,6 +137,61 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
         )
     )
 
+@admin_router.callback_query(F.data == "admin_custom_downtime_prompt")
+async def custom_downtime_prompt_handler(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in settings.ADMIN_IDS:
+        return
+    
+    await callback.message.edit_text(MESSAGES['admin_custom_range_prompt'], parse_mode="HTML")
+    await state.set_state(AdminStates.waiting_for_downtime_range)
+
+@admin_router.message(StateFilter(AdminStates.waiting_for_downtime_range))
+async def process_custom_downtime(message: Message, state: FSMContext, session: AsyncSession):
+    if message.from_user.id not in settings.ADMIN_IDS:
+        return
+
+    # Expected format: DD.MM HH:MM - DD.MM HH:MM
+    try:
+        parts = message.text.split("-")
+        if len(parts) != 2:
+            raise ValueError
+        
+        start_str = parts[0].strip()
+        end_str = parts[1].strip()
+        
+        current_year = datetime.utcnow().year
+        
+        start_time = datetime.strptime(f"{start_str}.{current_year}", "%d.%m %H:%M.%Y")
+        end_time = datetime.strptime(f"{end_str}.{current_year}", "%d.%m %H:%M.%Y")
+        
+        if end_time <= start_time:
+            # If end time is technically before start time, it likely crossed into the next year
+            end_time = end_time.replace(year=current_year + 1)
+            
+    except ValueError:
+        await message.answer(MESSAGES['admin_invalid_format_error'], parse_mode="HTML")
+        return
+
+    db_settings = await get_global_settings(session)
+    db_settings.scheduled_disable_at = start_time
+    db_settings.scheduled_enable_at = end_time
+    db_settings.use_custom_schedule = True
+    db_settings.auto_enable_at = None
+    
+    # We do NOT set payments_enabled = False immediately here, unless current time is already within the range.
+    # The check is handled dynamically in user.py
+    
+    await session.commit()
+    
+    start_fmt = start_time.strftime("%Y-%m-%d %H:%M")
+    end_fmt = end_time.strftime("%Y-%m-%d %H:%M")
+    
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
+    )
+    await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt), reply_markup=kb, parse_mode="HTML")
+    await state.clear()
+
 @admin_router.callback_query(F.data == "admin_main_menu")
 async def admin_main_menu_handler(callback: CallbackQuery, session: AsyncSession):
     if callback.from_user.id not in settings.ADMIN_IDS:
@@ -142,9 +201,13 @@ async def admin_main_menu_handler(callback: CallbackQuery, session: AsyncSession
     status_text = "Включены" if db_settings.payments_enabled else "Выключены"
     text = f"{MESSAGES['admin_welcome']}\n\n{MESSAGES['admin_payments_status'].format(status=status_text)}"
     
-    if db_settings.auto_enable_at:
+    if db_settings.auto_enable_at and not db_settings.use_custom_schedule:
         time_str = db_settings.auto_enable_at.strftime("%Y-%m-%d %H:%M:%S")
-        text += f"\n⏳ Авто-включение: <b>{time_str}</b>"
+        text += f"\n⏳ Авто-включение (Шаббат): <b>{time_str}</b>"
+    elif db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
+        start_str = db_settings.scheduled_disable_at.strftime("%Y-%m-%d %H:%M")
+        end_str = db_settings.scheduled_enable_at.strftime("%Y-%m-%d %H:%M")
+        text += f"\n⏳ Свой период отключения:\nС: <b>{start_str}</b>\nПо: <b>{end_str}</b>"
 
     await callback.message.edit_text(text, reply_markup=get_admin_keyboard(db_settings.payments_enabled), parse_mode="HTML")
 

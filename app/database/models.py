@@ -42,6 +42,11 @@ class GlobalSettings(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     payments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_enable_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # New fields for custom downtime
+    scheduled_disable_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    scheduled_enable_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    use_custom_schedule: Mapped[bool] = mapped_column(Boolean, default=False)
 
 async def init_db(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:

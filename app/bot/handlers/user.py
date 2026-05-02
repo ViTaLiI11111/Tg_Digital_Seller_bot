@@ -21,13 +21,29 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
     if not db_settings:
         return True
     
+    current_time = datetime.utcnow()
+
+    # Check custom schedule
+    if db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
+        if db_settings.scheduled_disable_at <= current_time < db_settings.scheduled_enable_at:
+            return False
+        elif current_time >= db_settings.scheduled_enable_at:
+            db_settings.use_custom_schedule = False
+            db_settings.scheduled_disable_at = None
+            db_settings.scheduled_enable_at = None
+            db_settings.payments_enabled = True
+            await session.commit()
+            return True
+
+    # Check manual/shabbat toggle
     if not db_settings.payments_enabled:
-        if db_settings.auto_enable_at and datetime.utcnow() >= db_settings.auto_enable_at:
+        if db_settings.auto_enable_at and current_time >= db_settings.auto_enable_at:
             db_settings.payments_enabled = True
             db_settings.auto_enable_at = None
             await session.commit()
             return True
         return False
+
     return True
 
 async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):

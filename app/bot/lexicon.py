@@ -24,6 +24,9 @@ MESSAGES = {
     'admin_welcome': "🔐 <b>Панель администратора</b>\nВыберите действие:",
     'admin_payments_status': "💳 Статус платежей: <b>{status}</b>",
     'admin_shabbat_enabled': "🕯 Шаббат активирован. Платежи отключены.\nОни будут включены автоматически: {time}",
+    'admin_custom_range_prompt': "Укажите период отключения платежей в формате:\n<code>ДД.ММ ЧЧ:ММ - ДД.ММ ЧЧ:ММ</code>\n\nПример: <code>01.05 18:00 - 02.05 21:00</code>",
+    'admin_invalid_format_error': "❌ Ошибка формата. Пожалуйста, используйте формат <code>ДД.ММ ЧЧ:ММ - ДД.ММ ЧЧ:ММ</code> (например, 01.05 18:00 - 02.05 21:00).",
+    'admin_range_saved': "✅ Запланировано отключение платежей:\nС: <b>{start}</b>\nПо: <b>{end}</b>"
 }
 
 BUTTONS = {
@@ -41,6 +44,7 @@ BUTTONS = {
     
     'admin_toggle_payments': "🔄 Включить/Выключить платежи",
     'admin_enable_shabbat': "🕯 Отключить на Шаббат",
+    'admin_custom_downtime': "⏱ Задать свой период",
     'admin_close': "❌ Закрыть панель",
     
     'shabbat_time_1': "До вечера субботы (20:00)",
