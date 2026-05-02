@@ -73,13 +73,28 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
     return True
 
 async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):
+    # This function shows the disclaimer OR processes the purchase immediately.
+    # We MUST check if payments are enabled BEFORE processing the purchase if the user already accepted the disclaimer.
+    
     user = await session.scalar(select(User).where(User.telegram_id == message.chat.id))
+    
     if user and user.disclaimer_accepted:
+        # If accepted, we jump straight to purchase logic. 
+        # But we must check the schedule FIRST.
+        enabled = await is_payments_enabled(session)
+        logger.info(f"User requested product {product_id}. Payments enabled: {enabled}")
+        
+        if not enabled:
+            await message.answer(MESSAGES['shabbat_message'])
+            return
+
         if product_id == 1:
             await process_buy_19(message, session)
         elif product_id == 2:
             await process_buy_39(message, session)
     else:
+        # User has not accepted disclaimer. We don't check schedule here because
+        # we only want to show the disclaimer. The schedule will be checked after they click accept.
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=BUTTONS['accept_disclaimer'], callback_data=f"accept_disclaimer_{product_id}")],
@@ -103,6 +118,11 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
         await session.commit()
 
     if command.args == "get_plan39":
+        # Check payments_enabled before allowing deep link to proceed
+        if not await is_payments_enabled(session):
+            await message.answer(MESSAGES['shabbat_message'])
+            return
+            
         await show_disclaimer(message, session, 2)
         return
 
@@ -113,6 +133,13 @@ async def cmd_start(message: Message, session: AsyncSession, command: CommandObj
 
 @user_router.message(F.text == BUTTONS['main_menu_product'])
 async def product_handler(message: Message, session: AsyncSession):
+    # CRITICAL FIX: Check payments enabled before proceeding with the main menu button
+    enabled = await is_payments_enabled(session)
+    logger.info(f"User clicked product menu. Payments enabled: {enabled}")
+    if not enabled:
+        await message.answer(MESSAGES['shabbat_message'])
+        return
+        
     stmt = select(Order.product_id).where(
         Order.user_id == message.chat.id,
         Order.status == 'success'
@@ -138,6 +165,15 @@ async def accept_disclaimer_handler(callback: CallbackQuery, session: AsyncSessi
 
     await callback.message.edit_reply_markup()
 
+    # Now we check payment status before jumping into process_buy
+    enabled = await is_payments_enabled(session)
+    logger.info(f"User accepted disclaimer for product {product_id}. Payments enabled: {enabled}")
+    
+    if not enabled:
+        await callback.message.answer(MESSAGES['shabbat_message'])
+        await callback.answer()
+        return
+
     if product_id == 1:
         await process_buy_19(callback.message, session)
     elif product_id == 2:
@@ -150,6 +186,8 @@ async def decline_disclaimer_handler(callback: CallbackQuery):
     await callback.answer()
 
 async def process_buy_19(message: Message, session: AsyncSession):
+    # This function now expects that the payment check has already been performed
+    # by show_disclaimer or accept_disclaimer_handler, but we can leave a safety check here.
     if not await is_payments_enabled(session):
         await message.answer(MESSAGES['shabbat_message'])
         return
@@ -193,6 +231,7 @@ async def process_buy_19(message: Message, session: AsyncSession):
     )
 
 async def process_buy_39(message: Message, session: AsyncSession):
+    # Safety check
     if not await is_payments_enabled(session):
         await message.answer(MESSAGES['shabbat_message'])
         return
