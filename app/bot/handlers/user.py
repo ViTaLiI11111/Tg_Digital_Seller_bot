@@ -31,9 +31,14 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
             db_settings.use_custom_schedule = False
             db_settings.scheduled_disable_at = None
             db_settings.scheduled_enable_at = None
-            db_settings.payments_enabled = True
+            # Do not touch db_settings.payments_enabled here unless you want to override manual toggle
+            # But normally, custom schedule passing means we revert to whatever payments_enabled was.
+            # Assuming we want to re-enable payments if they were disabled by the schedule:
+            db_settings.payments_enabled = True 
             await session.commit()
             return True
+        # If current_time < db_settings.scheduled_disable_at, it means the schedule is in the future.
+        # Fall through to manual/shabbat check.
 
     # Check manual/shabbat toggle
     if not db_settings.payments_enabled:
