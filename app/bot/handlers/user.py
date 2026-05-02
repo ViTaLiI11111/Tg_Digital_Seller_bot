@@ -24,18 +24,25 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
     if not db_settings:
         return True
     
-    # Get current time in the configured timezone
     tz = ZoneInfo(settings.TIMEZONE)
     current_time = datetime.now(tz)
     
-    # Debugging log
-    logger.info(f"Checking payment status. Current time ({settings.TIMEZONE}): {current_time}, Manual Toggle: {db_settings.payments_enabled}, Custom Schedule: {db_settings.use_custom_schedule}, Shabbat Auto-Enable: {db_settings.auto_enable_at}, Custom Start: {db_settings.scheduled_disable_at}, Custom End: {db_settings.scheduled_enable_at}")
+    # Helper to make datetime aware and convert to target TZ
+    def localize_dt(dt: datetime) -> datetime:
+        if dt.tzinfo is None:
+            # If naive, assume it's UTC and convert to local
+            return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+        else:
+            return dt.astimezone(tz)
 
+    logger.info(f"Checking payment status. Current time ({settings.TIMEZONE}): {current_time}")
+    
     # Check custom schedule
     if db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
-        # Ensure DB times are timezone-aware in the correct timezone
-        start_tz = db_settings.scheduled_disable_at.replace(tzinfo=tz) if db_settings.scheduled_disable_at.tzinfo is None else db_settings.scheduled_disable_at.astimezone(tz)
-        end_tz = db_settings.scheduled_enable_at.replace(tzinfo=tz) if db_settings.scheduled_enable_at.tzinfo is None else db_settings.scheduled_enable_at.astimezone(tz)
+        start_tz = localize_dt(db_settings.scheduled_disable_at)
+        end_tz = localize_dt(db_settings.scheduled_enable_at)
+        
+        logger.info(f"Custom schedule active. Start: {start_tz}, End: {end_tz}")
 
         if start_tz <= current_time < end_tz:
             logger.info("Result: DISABLED (inside custom schedule)")
@@ -52,7 +59,7 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
     # Check manual/shabbat toggle
     if not db_settings.payments_enabled:
         if db_settings.auto_enable_at:
-            auto_tz = db_settings.auto_enable_at.replace(tzinfo=tz) if db_settings.auto_enable_at.tzinfo is None else db_settings.auto_enable_at.astimezone(tz)
+            auto_tz = localize_dt(db_settings.auto_enable_at)
             if current_time >= auto_tz:
                 logger.info("Result: ENABLING (Shabbat auto-enable time passed)")
                 db_settings.payments_enabled = True

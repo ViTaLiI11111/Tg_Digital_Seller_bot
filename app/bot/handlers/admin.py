@@ -54,8 +54,17 @@ async def build_admin_menu_text(session: AsyncSession, current_status: bool) -> 
         # Determine why it is disabled
         if db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
             current_time = datetime.now(tz)
-            start_tz = db_settings.scheduled_disable_at.replace(tzinfo=tz) if db_settings.scheduled_disable_at.tzinfo is None else db_settings.scheduled_disable_at.astimezone(tz)
-            end_tz = db_settings.scheduled_enable_at.replace(tzinfo=tz) if db_settings.scheduled_enable_at.tzinfo is None else db_settings.scheduled_enable_at.astimezone(tz)
+            
+            # Helper to make datetime aware and convert to target TZ
+            def localize_dt(dt: datetime) -> datetime:
+                if dt.tzinfo is None:
+                    # If naive, assume it's UTC (as usually stored by SQLAlchemy DateTime(timezone=True) depending on driver)
+                    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+                else:
+                    return dt.astimezone(tz)
+
+            start_tz = localize_dt(db_settings.scheduled_disable_at)
+            end_tz = localize_dt(db_settings.scheduled_enable_at)
             
             if start_tz <= current_time < end_tz:
                 status_text = "🔴 Выключены (Автоматически - Свой период)"
@@ -69,12 +78,25 @@ async def build_admin_menu_text(session: AsyncSession, current_status: bool) -> 
     text = f"{MESSAGES['admin_welcome']}\n\n{MESSAGES['admin_payments_status'].format(status=status_text)}"
     
     if db_settings.auto_enable_at and not db_settings.use_custom_schedule:
-        auto_tz = db_settings.auto_enable_at.replace(tzinfo=tz) if db_settings.auto_enable_at.tzinfo is None else db_settings.auto_enable_at.astimezone(tz)
+        # Helper to make datetime aware and convert to target TZ
+        def localize_dt(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+            else:
+                return dt.astimezone(tz)
+                
+        auto_tz = localize_dt(db_settings.auto_enable_at)
         time_str = auto_tz.strftime("%Y-%m-%d %H:%M:%S")
         text += f"\n⏳ Авто-включение (Шаббат): <b>{time_str} ({settings.TIMEZONE})</b>"
     elif db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
-        start_tz = db_settings.scheduled_disable_at.replace(tzinfo=tz) if db_settings.scheduled_disable_at.tzinfo is None else db_settings.scheduled_disable_at.astimezone(tz)
-        end_tz = db_settings.scheduled_enable_at.replace(tzinfo=tz) if db_settings.scheduled_enable_at.tzinfo is None else db_settings.scheduled_enable_at.astimezone(tz)
+        def localize_dt(dt: datetime) -> datetime:
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
+            else:
+                return dt.astimezone(tz)
+                
+        start_tz = localize_dt(db_settings.scheduled_disable_at)
+        end_tz = localize_dt(db_settings.scheduled_enable_at)
         start_str = start_tz.strftime("%Y-%m-%d %H:%M")
         end_str = end_tz.strftime("%Y-%m-%d %H:%M")
         text += f"\n⏳ Свой период отключения:\nС: <b>{start_str} ({settings.TIMEZONE})</b>\nПо: <b>{end_str} ({settings.TIMEZONE})</b>"
@@ -142,8 +164,8 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     if callback.from_user.id not in settings.ADMIN_IDS:
         return
 
-    tz = ZoneInfo(settings.TIMEZONE)
-    now = datetime.now(tz)
+    # Shabbat times are calculated based on UTC, so let's stick to UTC for internal storage
+    now = datetime.utcnow()
     
     if callback.data == "set_shabbat_sat_20":
         days_ahead = 5 - now.weekday()
@@ -162,7 +184,9 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
 
     db_settings = await get_global_settings(session)
     db_settings.payments_enabled = False
-    db_settings.auto_enable_at = enable_time
+    
+    # Store as explicitly UTC
+    db_settings.auto_enable_at = enable_time.replace(tzinfo=ZoneInfo("UTC"))
     db_settings.use_custom_schedule = False
     await session.commit()
 
@@ -212,24 +236,28 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
             # If end time is technically before start time, it likely crossed into the next year
             end_time_naive = end_time_naive.replace(year=current_year + 1)
             
-        # Attach the timezone to the parsed times
-        start_time = start_time_naive.replace(tzinfo=tz)
-        end_time = end_time_naive.replace(tzinfo=tz)
+        # The admin enters time in local timezone. We attach local TZ to it.
+        # Then we convert it to UTC before saving to DB, as SQLAlchemy DateTime is typically UTC.
+        start_time_local = start_time_naive.replace(tzinfo=tz)
+        end_time_local = end_time_naive.replace(tzinfo=tz)
+        
+        start_time_utc = start_time_local.astimezone(ZoneInfo("UTC"))
+        end_time_utc = end_time_local.astimezone(ZoneInfo("UTC"))
             
     except ValueError:
         await message.answer(MESSAGES['admin_invalid_format_error'], parse_mode="HTML")
         return
 
     db_settings = await get_global_settings(session)
-    db_settings.scheduled_disable_at = start_time
-    db_settings.scheduled_enable_at = end_time
+    db_settings.scheduled_disable_at = start_time_utc
+    db_settings.scheduled_enable_at = end_time_utc
     db_settings.use_custom_schedule = True
     db_settings.auto_enable_at = None
     
     await session.commit()
     
-    start_fmt = start_time.strftime("%Y-%m-%d %H:%M")
-    end_fmt = end_time.strftime("%Y-%m-%d %H:%M")
+    start_fmt = start_time_local.strftime("%Y-%m-%d %H:%M")
+    end_fmt = end_time_local.strftime("%Y-%m-%d %H:%M")
     
     # We don't render the whole menu here, just the confirmation message with a back button.
     # The back button will trigger admin_main_menu, which re-evaluates the state.
