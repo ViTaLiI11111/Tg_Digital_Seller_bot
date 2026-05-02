@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
+import logging
 
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
@@ -18,6 +19,7 @@ from app.bot.lexicon import MESSAGES, BUTTONS
 from app.bot.handlers.user import is_payments_enabled
 
 admin_router = Router()
+logger = logging.getLogger(__name__)
 
 class AdminStates(StatesGroup):
     waiting_for_password = State()
@@ -112,14 +114,30 @@ async def secret_admin_command(message: Message, state: FSMContext):
 @admin_router.message(StateFilter(AdminStates.waiting_for_password))
 async def process_admin_password(message: Message, state: FSMContext, session: AsyncSession):
     if message.from_user.id in settings.ADMIN_IDS:
-        # FORCE STRING COMPARISON
-        if str(message.text).strip() == str(settings.ADMIN_PASSWORD).strip():
-            current_status, _ = await is_payments_enabled(session)
-            text = await build_admin_menu_text(session, current_status)
-            await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
-            await state.clear()
-        else:
-            await message.answer(MESSAGES['admin_wrong_password'])
+        try:
+            if not message.text:
+                await message.answer(MESSAGES['admin_wrong_password'])
+                await state.clear()
+                return
+
+            # Force string comparison and handle Unicode characters robustly
+            input_pw = str(message.text).strip()
+            actual_pw = str(settings.ADMIN_PASSWORD).strip()
+            
+            # Log the type and length to help diagnose encoding issues without logging the secret
+            logger.info(f"Admin password attempt - Input type: {type(input_pw)}, Input length: {len(input_pw)}")
+            
+            if input_pw == actual_pw:
+                current_status, _ = await is_payments_enabled(session)
+                text = await build_admin_menu_text(session, current_status)
+                await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
+                await state.clear()
+            else:
+                await message.answer(MESSAGES['admin_wrong_password'])
+                await state.clear()
+        except Exception as e:
+            logger.error(f"Error during admin password validation: {e}", exc_info=True)
+            await message.answer("❌ Произошла ошибка при проверке пароля.")
             await state.clear()
     else:
         await message.answer(MESSAGES['admin_wrong_password'])
