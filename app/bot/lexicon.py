@@ -45,6 +45,8 @@ BUTTONS = {
     'admin_toggle_payments': "🔄 Включить/Выключить платежи",
     'admin_enable_shabbat': "🕯 Отключить на Шаббат",
     'admin_custom_downtime': "⏱ Задать свой период",
+    'admin_refresh_status': "🔄 Обновить статус",
+    'admin_back_to_main': "⬅️ Назад в меню",
     'admin_close': "❌ Закрыть панель",
     
     'shabbat_time_1': "До вечера субботы (20:00)",

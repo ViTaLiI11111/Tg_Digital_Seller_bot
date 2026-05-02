@@ -40,6 +40,7 @@ def get_admin_keyboard(payments_status: bool) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=f"🔄 {toggle_text}", callback_data="admin_toggle_payments")],
             [InlineKeyboardButton(text=BUTTONS['admin_enable_shabbat'], callback_data="admin_shabbat_menu")],
             [InlineKeyboardButton(text=BUTTONS['admin_custom_downtime'], callback_data="admin_custom_downtime_prompt")],
+            [InlineKeyboardButton(text=BUTTONS['admin_refresh_status'], callback_data="admin_refresh_status")],
             [InlineKeyboardButton(text=BUTTONS['admin_close'], callback_data="admin_close")]
         ]
     )
@@ -145,6 +146,25 @@ async def toggle_payments_handler(callback: CallbackQuery, session: AsyncSession
     )
     await callback.answer("Статус платежей изменен")
 
+@admin_router.callback_query(F.data == "admin_refresh_status")
+async def refresh_status_handler(callback: CallbackQuery, session: AsyncSession):
+    if callback.from_user.id not in settings.ADMIN_IDS:
+        return
+
+    current_status = await is_payments_enabled(session)
+    text = await build_admin_menu_text(session, current_status)
+    
+    try:
+        await callback.message.edit_text(
+            text, 
+            reply_markup=get_admin_keyboard(current_status),
+            parse_mode="HTML"
+        )
+        await callback.answer("Статус обновлен ✅")
+    except Exception:
+        # Catch exceptions like TelegramBadRequest: message is not modified
+        await callback.answer("Статус не изменился", show_alert=False)
+
 @admin_router.callback_query(F.data == "admin_shabbat_menu")
 async def shabbat_menu_handler(callback: CallbackQuery):
     if callback.from_user.id not in settings.ADMIN_IDS:
@@ -154,7 +174,7 @@ async def shabbat_menu_handler(callback: CallbackQuery):
         inline_keyboard=[
             [InlineKeyboardButton(text=BUTTONS['shabbat_time_1'], callback_data="set_shabbat_sat_20")],
             [InlineKeyboardButton(text=BUTTONS['shabbat_time_2'], callback_data="set_shabbat_sun_09")],
-            [InlineKeyboardButton(text=BUTTONS['shabbat_cancel'], callback_data="admin_main_menu")]
+            [InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]
         ]
     )
     await callback.message.edit_text("Выберите время автоматического включения платежей после Шаббата:", reply_markup=kb)
@@ -197,7 +217,7 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
+            inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
         ),
         parse_mode="HTML"
     )
@@ -207,8 +227,24 @@ async def custom_downtime_prompt_handler(callback: CallbackQuery, state: FSMCont
     if callback.from_user.id not in settings.ADMIN_IDS:
         return
     
-    await callback.message.edit_text(MESSAGES['admin_custom_range_prompt'], parse_mode="HTML")
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_cancel_downtime_prompt")]]
+    )
+    await callback.message.edit_text(MESSAGES['admin_custom_range_prompt'], reply_markup=kb, parse_mode="HTML")
     await state.set_state(AdminStates.waiting_for_downtime_range)
+
+@admin_router.callback_query(F.data == "admin_cancel_downtime_prompt")
+async def cancel_downtime_prompt_handler(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if callback.from_user.id not in settings.ADMIN_IDS:
+        return
+    
+    await state.clear()
+    
+    current_status = await is_payments_enabled(session)
+    text = await build_admin_menu_text(session, current_status)
+
+    await callback.message.edit_text(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
+
 
 @admin_router.message(StateFilter(AdminStates.waiting_for_downtime_range))
 async def process_custom_downtime(message: Message, state: FSMContext, session: AsyncSession):
@@ -245,7 +281,10 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
         end_time_utc = end_time_local.astimezone(ZoneInfo("UTC"))
             
     except ValueError:
-        await message.answer(MESSAGES['admin_invalid_format_error'], parse_mode="HTML")
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_cancel_downtime_prompt")]]
+        )
+        await message.answer(MESSAGES['admin_invalid_format_error'], reply_markup=kb, parse_mode="HTML")
         return
 
     db_settings = await get_global_settings(session)
@@ -262,7 +301,7 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
     # We don't render the whole menu here, just the confirmation message with a back button.
     # The back button will trigger admin_main_menu, which re-evaluates the state.
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
+        inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
     )
     await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt, tz=settings.TIMEZONE), reply_markup=kb, parse_mode="HTML")
     await state.clear()
@@ -275,7 +314,11 @@ async def admin_main_menu_handler(callback: CallbackQuery, session: AsyncSession
     current_status = await is_payments_enabled(session)
     text = await build_admin_menu_text(session, current_status)
 
-    await callback.message.edit_text(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
+    try:
+        await callback.message.edit_text(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
+    except Exception:
+        # Ignore "message is not modified" exceptions if they happen
+        pass
 
 @admin_router.callback_query(F.data == "admin_close")
 async def admin_close_handler(callback: CallbackQuery):
