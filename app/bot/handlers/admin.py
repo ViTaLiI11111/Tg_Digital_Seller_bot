@@ -129,6 +129,7 @@ async def process_admin_password(message: Message, state: FSMContext, session: A
             if input_pw == actual_pw:
                 # -------------------------------------------------------------
                 # DELETE PASSWORD MESSAGE FOR SECURITY
+                # MUST HAPPEN BEFORE ANY OTHER ACTION
                 # -------------------------------------------------------------
                 try:
                     await message.delete()
@@ -140,6 +141,11 @@ async def process_admin_password(message: Message, state: FSMContext, session: A
                 await message.answer(text, reply_markup=get_admin_keyboard(current_status), parse_mode="HTML")
                 await state.clear()
             else:
+                try:
+                    await message.delete()
+                except Exception as e:
+                    logger.warning(f"Could not delete incorrect admin password message: {e}")
+
                 await message.answer(MESSAGES['admin_wrong_password'])
                 await state.clear()
         except Exception as e:
