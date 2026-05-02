@@ -1,4 +1,5 @@
 import stripe
+import logging
 from aiogram import Router, F
 from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Document
@@ -12,6 +13,7 @@ from app.bot.keyboards.reply import main_menu_keyboard
 from app.bot.lexicon import MESSAGES, BUTTONS, STRIPE_PRODUCTS
 
 user_router = Router()
+logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -22,33 +24,36 @@ async def is_payments_enabled(session: AsyncSession) -> bool:
         return True
     
     current_time = datetime.utcnow()
+    
+    # Debugging log
+    logger.info(f"Checking payment status. Current time (UTC): {current_time}, Manual Toggle: {db_settings.payments_enabled}, Custom Schedule: {db_settings.use_custom_schedule}, Shabbat Auto-Enable: {db_settings.auto_enable_at}, Custom Start: {db_settings.scheduled_disable_at}, Custom End: {db_settings.scheduled_enable_at}")
 
     # Check custom schedule
     if db_settings.use_custom_schedule and db_settings.scheduled_disable_at and db_settings.scheduled_enable_at:
         if db_settings.scheduled_disable_at <= current_time < db_settings.scheduled_enable_at:
+            logger.info("Result: DISABLED (inside custom schedule)")
             return False
         elif current_time >= db_settings.scheduled_enable_at:
+            logger.info("Result: ENABLING (custom schedule expired)")
             db_settings.use_custom_schedule = False
             db_settings.scheduled_disable_at = None
             db_settings.scheduled_enable_at = None
-            # Do not touch db_settings.payments_enabled here unless you want to override manual toggle
-            # But normally, custom schedule passing means we revert to whatever payments_enabled was.
-            # Assuming we want to re-enable payments if they were disabled by the schedule:
             db_settings.payments_enabled = True 
             await session.commit()
             return True
-        # If current_time < db_settings.scheduled_disable_at, it means the schedule is in the future.
-        # Fall through to manual/shabbat check.
 
     # Check manual/shabbat toggle
     if not db_settings.payments_enabled:
         if db_settings.auto_enable_at and current_time >= db_settings.auto_enable_at:
+            logger.info("Result: ENABLING (Shabbat auto-enable time passed)")
             db_settings.payments_enabled = True
             db_settings.auto_enable_at = None
             await session.commit()
             return True
+        logger.info("Result: DISABLED (manual toggle or Shabbat)")
         return False
 
+    logger.info("Result: ENABLED (default)")
     return True
 
 async def show_disclaimer(message: Message, session: AsyncSession, product_id: int):
