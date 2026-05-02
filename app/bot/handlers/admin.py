@@ -124,7 +124,6 @@ async def process_admin_password(message: Message, state: FSMContext, session: A
             input_pw = str(message.text).strip()
             actual_pw = str(settings.ADMIN_PASSWORD).strip()
             
-            # Log the type and length to help diagnose encoding issues without logging the secret
             logger.info(f"Admin password attempt - Input type: {type(input_pw)}, Input length: {len(input_pw)}")
             
             if input_pw == actual_pw:
@@ -240,7 +239,7 @@ async def set_shabbat_handler(callback: CallbackQuery, session: AsyncSession):
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
+            inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
         ),
         parse_mode="HTML"
     )
@@ -324,7 +323,7 @@ async def process_custom_downtime(message: Message, state: FSMContext, session: 
     # We don't render the whole menu here, just the confirmation message with a back button.
     # The back button will trigger admin_main_menu, which re-evaluates the state.
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🔙 В главное меню", callback_data="admin_main_menu")]]
+        inline_keyboard=[[InlineKeyboardButton(text=BUTTONS['admin_back_to_main'], callback_data="admin_main_menu")]]
     )
     await message.answer(MESSAGES['admin_range_saved'].format(start=start_fmt, end=end_fmt, tz=settings.TIMEZONE), reply_markup=kb, parse_mode="HTML")
     await state.clear()
