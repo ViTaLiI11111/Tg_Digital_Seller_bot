@@ -5,7 +5,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       # КРИТИЧНО ВАЖЛИВО: Базу даних потрібно зберігати за абсолютним шляхом на хості 
       # (/var/lib/tg_bot_data), тому що GitHub Actions runner видаляє локальну папку 
